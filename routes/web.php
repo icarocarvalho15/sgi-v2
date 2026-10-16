@@ -13,6 +13,10 @@ use App\Modules\Inventory\Http\Controllers\ItemController;
 use App\Modules\Inventory\Http\Controllers\KardexMovementController;
 use App\Modules\Inventory\Http\Controllers\StockAdjustmentController;
 use App\Modules\Inventory\Http\Controllers\WarehouseController;
+use App\Modules\Production\Http\Controllers\BomController;
+use App\Modules\Production\Http\Controllers\ProductionOrderController;
+use App\Modules\Production\Http\Controllers\ShopFloorController;
+use App\Modules\Production\Http\Controllers\WorkCenterController;
 use App\Modules\Tenant\Http\Controllers\DashboardController as TenantDashboardController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -86,5 +90,33 @@ Route::middleware(['auth', 'tenant.context', 'tenant.active'])
 
             // Ajuste Manual de Estoque (com Justificativa Obrigatória)
             Route::post('/adjustments', [StockAdjustmentController::class, 'store'])->name('adjustments.store');
+        });
+
+        // Módulo de Engenharia & Produção (Chão de Fábrica)
+        Route::prefix('production')->name('production.')->group(function () {
+            Route::get('/', fn () => redirect()->route('tenant.production.orders.index'));
+
+            // Centros de Trabalho
+            Route::get('/work-centers', [WorkCenterController::class, 'index'])->name('work-centers.index');
+            Route::post('/work-centers', [WorkCenterController::class, 'store'])->name('work-centers.store');
+            Route::put('/work-centers/{workCenter}', [WorkCenterController::class, 'update'])->name('work-centers.update');
+
+            // Fichas Técnicas (BOMs)
+            Route::get('/boms', [BomController::class, 'index'])->name('boms.index');
+            Route::post('/boms', [BomController::class, 'store'])->name('boms.store');
+            Route::post('/boms/{bom}/rollup', [BomController::class, 'calculateRollup'])->name('boms.rollup');
+
+            // Ordens de Produção (OPs)
+            Route::get('/orders', [ProductionOrderController::class, 'index'])->name('orders.index');
+            Route::post('/orders', [ProductionOrderController::class, 'store'])->name('orders.store');
+            Route::get('/orders/{order}', [ProductionOrderController::class, 'show'])->name('orders.show');
+            Route::post('/orders/{order}/release', [ProductionOrderController::class, 'release'])->name('orders.release');
+            Route::post('/orders/{order}/record-production', [ProductionOrderController::class, 'recordProduction'])->name('orders.record-production');
+
+            // PWA / Chão de Fábrica Mobile
+            Route::get('/shop-floor', [ShopFloorController::class, 'index'])->name('shop-floor.index');
+            Route::post('/operations/{operation}/start', [ShopFloorController::class, 'start'])->name('operations.start');
+            Route::post('/operations/{operation}/pause', [ShopFloorController::class, 'pause'])->name('operations.pause');
+            Route::post('/operations/{operation}/complete', [ShopFloorController::class, 'complete'])->name('operations.complete');
         });
     });

@@ -1,148 +1,183 @@
-# 🏃 Sprint Atual: FASE 2 — Suprimentos, Produtos & Kardex Imutável
+# 🏃 Sprint Atual: FASE 3 — Engenharia & Produção (Chão de Fábrica)
 
 > **Status:** Concluído com Sucesso ✅  
 > **Orquestrador:** `@Orchestrator-Architect`  
 > **Agentes Envolvidos:** `@Core-SecOps-Agent`, `@Backend-Domain-Agent`, `@Frontend-UX-Agent`, `@QA-Security-Validator`  
-> **Objetivo:** Implementar o catálogo de produtos/itens industriais, depósitos/almoxarifados, unidades de medida e o motor de Kardex atômico e imutável (`NUMERIC(15,4)`, Custo Médio Ponderado CMP, trava por `Cache::lock` e `lockForUpdate`), telas React/Inertia de saldos e extrato com filtros, modal de ajuste com justificativa obrigatória e isolamento cross-tenant comprovado por testes.
+> **Objetivo:** Implementar Fichas Técnicas (BOMs) versionadas com rollup de custos e prevenção de ciclos, Centros de Trabalho e Roteiros Produtivos, Ordens de Produção (OPs) com reserva e baixa atômica de matérias-primas e entrada de produtos acabados no Kardex (`KardexLedgerService`), interface Desktop ERP e Mobile/Tablet PWA para Chão de Fábrica (`ShopFloorMobileLayout`) com Play/Pause e apontamento de produção/perda, e testes de segurança e isolamento Cross-Tenant.
 
 ---
 
-## 📐 ERD e Modelo Relacional da Fase 2 (Double Lock: Tenant ID + RLS)
+## 📐 ERD e Modelo Relacional da Fase 3 (Double Lock: Tenant ID + RLS)
 
-### 1. `units_of_measure`
+### 1. `work_centers` (Centros de Trabalho)
 - `id` (UUID PK)
 - `tenant_id` (UUID NOT NULL, Index)
+- `code` (string, ex: CT-CORTE, CT-USIN, CT-PINT)
 - `name` (string)
-- `code` (string, ex: UN, KG, M, L, M2, CX)
-- `symbol` (string)
-- `type` (string: unit, weight, volume, length, area)
+- `description` (text, nullable)
+- `hourly_cost` (`NUMERIC(15, 4)`, default 0)
+- `capacity_per_day_hours` (`NUMERIC(15, 2)`, default 8.00)
 - `is_active` (boolean, default true)
 - `created_at`, `updated_at`
 - **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, code)`, `FK (tenant_id) -> tenants(id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('units_of_measure')`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('work_centers')`
 
-### 2. `item_categories`
+### 2. `boms` (Fichas Técnicas / Bill of Materials)
 - `id` (UUID PK)
 - `tenant_id` (UUID NOT NULL, Index)
-- `name` (string)
-- `code` (string, nullable)
-- `parent_id` (UUID, nullable)
-- `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, name)`, `FK (tenant_id) -> tenants(id)`, `FK (tenant_id, parent_id) -> item_categories(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('item_categories')`
-
-### 3. `warehouses`
-- `id` (UUID PK)
-- `tenant_id` (UUID NOT NULL, Index)
-- `code` (string, ex: ALM-01, EXP-01, PROD-01)
-- `name` (string)
+- `item_id` (UUID NOT NULL)
+- `code` (string, ex: BOM-MESA-01)
+- `version` (integer, default 1)
 - `description` (text, nullable)
+- `batch_size` (`NUMERIC(15, 4)`, default 1.0000)
+- `total_estimated_cost` (`NUMERIC(15, 4)`, default 0)
 - `is_active` (boolean, default true)
-- `is_default` (boolean, default false)
+- `is_default` (boolean, default true)
 - `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, code)`, `FK (tenant_id) -> tenants(id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('warehouses')`
+- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, item_id, version)`, `FK (tenant_id) -> tenants(id)`
+- **Composite FKs:** `(tenant_id, item_id) -> items(tenant_id, id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('boms')`
 
-### 4. `items`
+### 3. `bom_items` (Insumos da Ficha Técnica)
 - `id` (UUID PK)
 - `tenant_id` (UUID NOT NULL, Index)
-- `sku` (string)
-- `name` (string)
-- `description` (text, nullable)
+- `bom_id` (UUID NOT NULL)
+- `item_id` (UUID NOT NULL)
 - `unit_of_measure_id` (UUID NOT NULL)
-- `category_id` (UUID, nullable)
-- `default_warehouse_id` (UUID, nullable)
-- `is_raw_material` (boolean, default false)
-- `is_manufactured` (boolean, default false)
-- `is_sellable` (boolean, default true)
-- `is_service` (boolean, default false)
-- `allow_negative_stock` (boolean, default false)
-- `min_stock` (`NUMERIC(15, 4)`, default 0)
-- `max_stock` (`NUMERIC(15, 4)`, nullable)
-- `average_cost` (`NUMERIC(15, 4)`, default 0)
-- `last_cost` (`NUMERIC(15, 4)`, default 0)
-- `sale_price` (`NUMERIC(15, 2)`, default 0)
-- `is_active` (boolean, default true)
+- `quantity` (`NUMERIC(15, 4)`, NOT NULL)
+- `scrap_rate_percentage` (`NUMERIC(5, 2)`, default 0.00)
+- `unit_cost` (`NUMERIC(15, 4)`, default 0)
+- `total_cost` (`NUMERIC(15, 4)`, default 0)
+- `notes` (string, nullable)
 - `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, sku)`, `FK (tenant_id) -> tenants(id)`
-- **Composite FKs:**
-  - `(tenant_id, unit_of_measure_id) -> units_of_measure(tenant_id, id)`
-  - `(tenant_id, category_id) -> item_categories(tenant_id, id)`
-  - `(tenant_id, default_warehouse_id) -> warehouses(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('items')`
-
-### 5. `inventory_balances` (Snapshot Derivado sob Lock)
-- `id` (UUID PK)
-- `tenant_id` (UUID NOT NULL, Index)
-- `warehouse_id` (UUID NOT NULL)
-- `item_id` (UUID NOT NULL)
-- `quantity_on_hand` (`NUMERIC(15, 4)`, default 0)
-- `quantity_reserved` (`NUMERIC(15, 4)`, default 0)
-- `average_cost` (`NUMERIC(15, 4)`, default 0)
-- `last_movement_at` (timestamp, nullable)
-- `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, warehouse_id, item_id)`
-- **Composite FKs:**
-  - `(tenant_id, warehouse_id) -> warehouses(tenant_id, id)`
-  - `(tenant_id, item_id) -> items(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('inventory_balances')`
-
-### 6. `kardex_movements` (Razão Imutável Append-Only)
-- `id` (UUID PK)
-- `tenant_id` (UUID NOT NULL, Index)
-- `movement_number` (string)
-- `warehouse_id` (UUID NOT NULL)
-- `item_id` (UUID NOT NULL)
-- `movement_type` (string: IN_PURCHASE, IN_PRODUCTION, IN_ADJUSTMENT, IN_TRANSFER, OUT_PRODUCTION, OUT_SALE, OUT_ADJUSTMENT, OUT_TRANSFER, OUT_SCRAP)
-- `quantity` (`NUMERIC(15, 4)`, > 0)
-- `unit_cost` (`NUMERIC(15, 4)`)
-- `total_cost` (`NUMERIC(15, 4)`)
-- `previous_balance` (`NUMERIC(15, 4)`)
-- `resulting_balance` (`NUMERIC(15, 4)`)
-- `previous_average_cost` (`NUMERIC(15, 4)`)
-- `resulting_average_cost` (`NUMERIC(15, 4)`)
-- `reference_type` (string, nullable)
-- `reference_id` (UUID, nullable)
-- `document_number` (string, nullable)
-- `justification` (text, nullable)
-- `user_id` (UUID, nullable)
-- `created_at` (timestamp NOT NULL)
 - **Constraints:** `UNIQUE (tenant_id, id)`
 - **Composite FKs:**
-  - `(tenant_id, warehouse_id) -> warehouses(tenant_id, id)`
+  - `(tenant_id, bom_id) -> boms(tenant_id, id) ON DELETE CASCADE`
   - `(tenant_id, item_id) -> items(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('kardex_movements')`
+  - `(tenant_id, unit_of_measure_id) -> units_of_measure(tenant_id, id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('bom_items')`
+
+### 4. `routing_steps` (Etapas do Roteiro Produtivo)
+- `id` (UUID PK)
+- `tenant_id` (UUID NOT NULL, Index)
+- `bom_id` (UUID NOT NULL)
+- `work_center_id` (UUID NOT NULL)
+- `sequence` (integer, default 1)
+- `name` (string)
+- `description` (text, nullable)
+- `setup_time_minutes` (`NUMERIC(10, 2)`, default 0)
+- `run_time_minutes_per_unit` (`NUMERIC(10, 2)`, default 0)
+- `created_at`, `updated_at`
+- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, bom_id, sequence)`
+- **Composite FKs:**
+  - `(tenant_id, bom_id) -> boms(tenant_id, id) ON DELETE CASCADE`
+  - `(tenant_id, work_center_id) -> work_centers(tenant_id, id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('routing_steps')`
+
+### 5. `production_orders` (Ordens de Produção)
+- `id` (UUID PK)
+- `tenant_id` (UUID NOT NULL, Index)
+- `order_number` (string)
+- `item_id` (UUID NOT NULL)
+- `bom_id` (UUID NOT NULL)
+- `warehouse_id` (UUID NOT NULL) - Depósito destino do produto acabado
+- `materials_warehouse_id` (UUID NOT NULL) - Depósito de origem dos materiais
+- `planned_quantity` (`NUMERIC(15, 4)`, NOT NULL)
+- `produced_quantity` (`NUMERIC(15, 4)`, default 0)
+- `scrapped_quantity` (`NUMERIC(15, 4)`, default 0)
+- `status` (string: DRAFT, RELEASED, IN_PROGRESS, COMPLETED, CANCELLED)
+- `priority` (string: LOW, MEDIUM, HIGH, URGENT)
+- `start_date` (date, nullable)
+- `due_date` (date, nullable)
+- `actual_start_at` (timestamp, nullable)
+- `actual_end_at` (timestamp, nullable)
+- `notes` (text, nullable)
+- `created_at`, `updated_at`
+- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, order_number)`
+- **Composite FKs:**
+  - `(tenant_id, item_id) -> items(tenant_id, id)`
+  - `(tenant_id, bom_id) -> boms(tenant_id, id)`
+  - `(tenant_id, warehouse_id) -> warehouses(tenant_id, id)`
+  - `(tenant_id, materials_warehouse_id) -> warehouses(tenant_id, id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('production_orders')`
+
+### 6. `production_order_materials` (Empenhos de Insumos da OP)
+- `id` (UUID PK)
+- `tenant_id` (UUID NOT NULL, Index)
+- `production_order_id` (UUID NOT NULL)
+- `item_id` (UUID NOT NULL)
+- `unit_of_measure_id` (UUID NOT NULL)
+- `planned_quantity` (`NUMERIC(15, 4)`, NOT NULL)
+- `consumed_quantity` (`NUMERIC(15, 4)`, default 0)
+- `unit_cost` (`NUMERIC(15, 4)`, default 0)
+- `total_cost` (`NUMERIC(15, 4)`, default 0)
+- `created_at`, `updated_at`
+- **Constraints:** `UNIQUE (tenant_id, id)`
+- **Composite FKs:**
+  - `(tenant_id, production_order_id) -> production_orders(tenant_id, id) ON DELETE CASCADE`
+  - `(tenant_id, item_id) -> items(tenant_id, id)`
+  - `(tenant_id, unit_of_measure_id) -> units_of_measure(tenant_id, id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('production_order_materials')`
+
+### 7. `production_order_operations` (Operações e Apontamentos Chão de Fábrica)
+- `id` (UUID PK)
+- `tenant_id` (UUID NOT NULL, Index)
+- `production_order_id` (UUID NOT NULL)
+- `routing_step_id` (UUID, nullable)
+- `work_center_id` (UUID NOT NULL)
+- `sequence` (integer, default 1)
+- `status` (string: PENDING, IN_PROGRESS, PAUSED, COMPLETED)
+- `started_at` (timestamp, nullable)
+- `paused_at` (timestamp, nullable)
+- `completed_at` (timestamp, nullable)
+- `executed_time_seconds` (integer, default 0)
+- `operator_user_id` (UUID, nullable)
+- `notes` (text, nullable)
+- `created_at`, `updated_at`
+- **Constraints:** `UNIQUE (tenant_id, id)`
+- **Composite FKs:**
+  - `(tenant_id, production_order_id) -> production_orders(tenant_id, id) ON DELETE CASCADE`
+  - `(tenant_id, work_center_id) -> work_centers(tenant_id, id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('production_order_operations')`
 
 ---
 
 ## 📑 Contratos Técnicos de Backend & Frontend
 
 ### DTOs & Services
-- `StockMovementDTO`: Objeto imutável contendo `warehouseId`, `itemId`, `movementType`, `quantity`, `unitCost`, `referenceType`, `referenceId`, `documentNumber`, `justification`, `userId`.
-- `KardexLedgerService`:
-  1. Adquire `Cache::lock("tenant:{$tenantId}:item_stock:{$itemId}:warehouse:{$warehouseId}", 10)->block(5)`.
-  2. Executa `DB::transaction(...)`.
-  3. Busca e aplica `lockForUpdate()` no `InventoryBalance`.
-  4. Calcula Custo Médio Ponderado (CMP) estritamente em `bcmath` com precisão de 4 casas decimais.
-  5. Valida regra de saldo negativo (`allow_negative_stock`).
-  6. Insere linha imutável em `kardex_movements`.
-  7. Atualiza snapshot derivado em `inventory_balances` e custos em `items`.
+- `BomRollupService`: Cálculo de custo estimado com precisão `bcmath` e detecção de dependência circular (`CircularBomDependencyException`).
+- `ProductionOrderService`:
+  - `release(ProductionOrder $order)`: Altera status para `RELEASED`, calcula empenho de materiais (`production_order_materials`) baseado na BOM multiplicada pela quantidade planejada e gera operações (`production_order_operations`) a partir de `routing_steps`.
+  - `startOperation(ProductionOrderOperation $op, ?string $userId)`: Inicia timer e status `IN_PROGRESS`.
+  - `pauseOperation(ProductionOrderOperation $op)`: Pausa timer e acumula tempo executado.
+  - `completeOperation(ProductionOrderOperation $op)`: Conclui etapa.
+  - `recordProduction(ProductionOrder $order, string $producedQty, string $scrappedQty, ?string $notes)`:
+    - Baixa proporcional de matérias-primas no Kardex (`KardexMovementType::OutProduction`).
+    - Registro de sucata/perda no Kardex (`KardexMovementType::OutScrap`) se houver.
+    - Entrada de produto acabado no estoque (`KardexMovementType::InProduction`) com custo unitário real calculado.
+    - Atualiza saldo e status da OP para `COMPLETED` se `produced_quantity + scrapped_quantity >= planned_quantity`.
 
-### Endpoints
-- `GET /app/inventory/items` -> `ItemController@index`
-- `POST /app/inventory/items` -> `ItemController@store`
-- `PUT /app/inventory/items/{item}` -> `ItemController@update`
-- `GET /app/inventory/warehouses` -> `WarehouseController@index`
-- `POST /app/inventory/warehouses` -> `WarehouseController@store`
-- `GET /app/inventory/balances` -> `InventoryBalanceController@index`
-- `GET /app/inventory/kardex` -> `KardexMovementController@index`
-- `POST /app/inventory/adjustments` -> `StockAdjustmentController@store`
+### Endpoints (Rotas Operacionais em `/app/production`)
+- `GET /app/production/work-centers` -> `WorkCenterController@index`
+- `POST /app/production/work-centers` -> `WorkCenterController@store`
+- `GET /app/production/boms` -> `BomController@index`
+- `POST /app/production/boms` -> `BomController@store`
+- `GET /app/production/boms/{bom}` -> `BomController@show`
+- `POST /app/production/boms/{bom}/rollup` -> `BomController@calculateRollup`
+- `GET /app/production/orders` -> `ProductionOrderController@index`
+- `POST /app/production/orders` -> `ProductionOrderController@store`
+- `GET /app/production/orders/{order}` -> `ProductionOrderController@show`
+- `POST /app/production/orders/{order}/release` -> `ProductionOrderController@release`
+- `POST /app/production/orders/{order}/record-production` -> `ProductionOrderController@recordProduction`
+- `GET /app/production/shop-floor` -> `ShopFloorController@index` (PWA)
+- `POST /app/production/operations/{operation}/start` -> `ShopFloorController@start`
+- `POST /app/production/operations/{operation}/pause` -> `ShopFloorController@pause`
+- `POST /app/production/operations/{operation}/complete` -> `ShopFloorController@complete`
 
 ---
 
 ## 🗓️ Checklist de Execução por Agente
-- [x] `@Core-SecOps-Agent`: 6 Migrations com RLS e FKs compostas.
-- [x] `@Backend-Domain-Agent`: Models `TenantModel`, DTOs, `KardexLedgerService`, FormRequests com `TenantExists` e Controllers.
-- [x] `@Frontend-UX-Agent`: Páginas React/Inertia em `resources/js/Pages/Inventory/` (Itens, Saldos, Extrato Kardex, Almoxarifados, Ajuste de Estoque).
-- [x] `@QA-Security-Validator`: Suíte `InventoryKardexTest.php` com isolamento cross-tenant e concorrência de estoque (100% dos testes passando).
-
+- [x] `@Core-SecOps-Agent`: 7 Migrations com RLS e FKs compostas.
+- [x] `@Backend-Domain-Agent`: Models `TenantModel`, DTOs, Enums, `BomRollupService`, `ProductionOrderService`, FormRequests com `TenantExists` e Controllers.
+- [x] `@Frontend-UX-Agent`: Páginas React/Inertia Desktop (BOMs, Centros de Trabalho, Ordens de Produção) e Mobile PWA (`ShopFloorMobileLayout`).
+- [x] `@QA-Security-Validator`: Suíte `ProductionEngineeringTest.php` com cálculo de rollup, prevenção de loop circular, integração Kardex e isolamento cross-tenant.

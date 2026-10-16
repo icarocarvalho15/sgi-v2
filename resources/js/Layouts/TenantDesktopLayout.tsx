@@ -34,8 +34,9 @@ export default function TenantDesktopLayout({ children, title }: Props) {
         { key: 'dashboard', label: 'Painel Geral', href: '/app', icon: LayoutDashboard, requiredFeature: null },
         { key: 'crm', label: 'CRM & Orçamentos', href: '/app/crm', icon: Users, requiredFeature: 'crm' },
         { key: 'inventory', label: 'Suprimentos & Kardex', href: '/app/inventory', icon: Boxes, requiredFeature: 'inventory' },
-        { key: 'engineering', label: 'Engenharia (BOM)', href: '/app/engineering', icon: Cpu, requiredFeature: 'engineering' },
-        { key: 'production', label: 'Ordens de Produção', href: '/app/production', icon: Factory, requiredFeature: 'production' },
+        { key: 'engineering', label: 'Engenharia (BOM)', href: '/app/production/boms', icon: Cpu, requiredFeature: 'production' },
+        { key: 'production', label: 'Ordens de Produção', href: '/app/production/orders', icon: Factory, requiredFeature: 'production' },
+        { key: 'work_centers', label: 'Centros de Trabalho', href: '/app/production/work-centers', icon: Building2, requiredFeature: 'production' },
         { key: 'finance', label: 'Financeiro & Fluxo', href: '/app/finance', icon: Coins, requiredFeature: 'finance' },
         { key: 'fiscal', label: 'Notas Fiscais (NFe)', href: '/app/fiscal', icon: ReceiptText, requiredFeature: 'nfe_enabled' },
     ];
@@ -146,7 +147,7 @@ export default function TenantDesktopLayout({ children, title }: Props) {
                     {/* Atalho Chão de Fábrica Mobile & Logout */}
                     <div className="p-3 border-t border-slate-800 space-y-2">
                         <Link
-                            href="/app"
+                            href="/app/production/shop-floor"
                             className="flex items-center justify-center space-x-2 text-xs font-semibold py-2 px-3 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition"
                         >
                             <Smartphone className="w-4 h-4" />

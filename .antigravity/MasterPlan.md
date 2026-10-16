@@ -61,12 +61,12 @@ O sistema possui dois ambientes estritamente separados na mesma base de código:
 - [x] **2.3** Motor de Kardex (`kardex_movements` e `inventory_balances`) com Lock Atômico Redis/Postgres (`KardexLedgerService`).
 - [x] **2.4** Telas de Consulta de Saldo, Extrato de Kardex auditável e Inventário/Ajuste com justificativa obrigatória.
 
-### FASE 3: Engenharia & Produção (Chão de Fábrica) (`[ ] Pendente`)
-- [ ] **3.1** Ficha Técnica / Bill of Materials (`boms` e `bom_items`) com versionamento, cálculo de custo estimado (`rollup`) e prevenção de loop circular.
-- [ ] **3.2** Roteiros Produtivos e Centros de Trabalho (`work_centers`, `routing_steps`).
-- [ ] **3.3** Ordens de Produção (`production_orders`, `production_order_materials`, `production_order_operations`).
-- [ ] **3.4** Integração Produção <-> Estoque: Reserva automática de insumos, baixa de matéria-prima e entrada de produto acabado no Kardex.
-- [ ] **3.5** Interface Mobile/Tablet PWA (`ShopFloorMobileLayout`): Kanban de Chão de Fábrica com Play/Pause/Apontamento de perda e leitura de código de barras/QR Code.
+### FASE 3: Engenharia & Produção (Chão de Fábrica) (`[x] Concluída`)
+- [x] **3.1** Ficha Técnica / Bill of Materials (`boms` e `bom_items`) com versionamento, cálculo de custo estimado (`rollup`) e prevenção de loop circular.
+- [x] **3.2** Roteiros Produtivos e Centros de Trabalho (`work_centers`, `routing_steps`).
+- [x] **3.3** Ordens de Produção (`production_orders`, `production_order_materials`, `production_order_operations`).
+- [x] **3.4** Integração Produção <-> Estoque: Reserva automática de insumos, baixa de matéria-prima e entrada de produto acabado no Kardex.
+- [x] **3.5** Interface Mobile/Tablet PWA (`ShopFloorMobileLayout`): Kanban de Chão de Fábrica com Play/Pause/Apontamento de perda e leitura de código de barras/QR Code.
 
 ### FASE 4: CRM, Orçamentos Sob Encomenda & Vendas (`[ ] Pendente`)
 - [ ] **4.1** Cadastro de Clientes/Fornecedores (`partners`) com validação de CNPJ/CPF e endereços múltiplos.

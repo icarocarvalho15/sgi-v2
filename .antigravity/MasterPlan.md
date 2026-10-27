@@ -68,22 +68,22 @@ O sistema possui dois ambientes estritamente separados na mesma base de código:
 - [x] **3.4** Integração Produção <-> Estoque: Reserva automática de insumos, baixa de matéria-prima e entrada de produto acabado no Kardex.
 - [x] **3.5** Interface Mobile/Tablet PWA (`ShopFloorMobileLayout`): Kanban de Chão de Fábrica com Play/Pause/Apontamento de perda e leitura de código de barras/QR Code.
 
-### FASE 4: CRM, Orçamentos Sob Encomenda & Vendas (`[ ] Pendente`)
-- [ ] **4.1** Cadastro de Clientes/Fornecedores (`partners`) com validação de CNPJ/CPF e endereços múltiplos.
-- [ ] **4.2** Funil de Vendas e Oportunidades em Kanban (`crm_pipelines`, `crm_deals`) com drag-and-drop (`dnd-kit`).
-- [ ] **4.3** Orçamentos Técnicos (`quotes`, `quote_items`) integrados à Engenharia para simulação de margem, markup e prazo de entrega.
-- [ ] **4.4** Conversão 1-Clique: Aprovação de Orçamento -> Gera Pedido de Venda -> Dispara Ordem de Produção + Previsão Financeira.
+### FASE 4: CRM, Orçamentos Sob Encomenda & Vendas (`[x] Concluída`)
+- [x] **4.1** Cadastro de Clientes/Fornecedores (`partners`) com validação de CNPJ/CPF e endereços múltiplos.
+- [x] **4.2** Funil de Vendas e Oportunidades em Kanban (`crm_pipelines`, `crm_deals`) com drag-and-drop (`dnd-kit`).
+- [x] **4.3** Orçamentos Técnicos (`quotes`, `quote_items`) integrados à Engenharia para simulação de margem, markup e prazo de entrega.
+- [x] **4.4** Conversão 1-Clique: Aprovação de Orçamento -> Gera Pedido de Venda -> Dispara Ordem de Produção + Previsão Financeira.
 
-### FASE 5: Módulo Financeiro (`[ ] Pendente`)
-- [ ] **5.1** Contas Bancárias/Caixas Internos (`financial_accounts`), Plano de Contas (`chart_of_accounts`) e Centros de Custo (`cost_centers`).
-- [ ] **5.2** Contas a Pagar e Contas a Receber (`financial_entries`) com suporte a parcelamento, juros, multa, descontos e baixas parciais (`financial_payments`).
-- [ ] **5.3** Dashboard de Fluxo de Caixa (Realizado vs Projetado) e DRE Gerencial por Regime de Competência e Caixa.
+### FASE 5: Módulo Financeiro (`[x] Concluída`)
+- [x] **5.1** Contas Bancárias/Caixas Internos (`financial_accounts`), Plano de Contas (`chart_of_accounts`) e Centros de Custo (`cost_centers`).
+- [x] **5.2** Contas a Pagar e Contas a Receber (`financial_entries`) com suporte a parcelamento, juros, multa, descontos e baixas parciais (`financial_payments`).
+- [x] **5.3** Dashboard de Fluxo de Caixa (Realizado vs Projetado) e DRE Gerencial por Regime de Competência e Caixa.
 
-### FASE 6: Integrações Fiscais (NFe/NFSe) & Gateways de Pagamento (`[ ] Pendente`)
-- [ ] **6.1** Cofre de Certificado Digital A1 (`.pfx`) e parâmetros tributários por Tenant (NCM, CFOP, CSOSN/CST, ISS).
-- [ ] **6.2** Adapter Pattern de Gateways de Pagamento (`AsaasAdapter`, `StripeAdapter`, `MercadoPagoAdapter`) para emissão de Pix Dinâmico, Boletos com QR Code e Link de Cartão.
-- [ ] **6.3** Receptor de Webhooks blindado (Validação HMAC + Tabela `webhook_events` para idempotência + Baixa automática no Contas a Receber).
-- [ ] **6.4** Adapter de Emissão Fiscal Assíncrona (`NFe` / `NFSe`) via Filas (`TenantAwareJob`) com armazenamento seguro de XML/DANFE em Storage S3/R2 privado.
+### FASE 6: Integrações Fiscais (NFe/NFSe) & Gateways de Pagamento (`[x] Concluída`)
+- [x] **6.1** Cofre de Certificado Digital A1 (`.pfx`) e parâmetros tributários por Tenant (NCM, CFOP, CSOSN/CST, ISS).
+- [x] **6.2** Adapter Pattern de Gateways de Pagamento (`AsaasAdapter`, `StripeAdapter`, `MercadoPagoAdapter`) para emissão de Pix Dinâmico, Boletos com QR Code e Link de Cartão.
+- [x] **6.3** Receptor de Webhooks blindado (Validação HMAC + Tabela `webhook_events` para idempotência + Baixa automática no Contas a Receber).
+- [x] **6.4** Adapter de Emissão Fiscal Assíncrona (`NFe` / `NFSe`) via Filas (`TenantAwareJob`) com armazenamento seguro de XML/DANFE em Storage privado.
 
 ---
 

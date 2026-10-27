@@ -1,183 +1,127 @@
-# 🏃 Sprint Atual: FASE 3 — Engenharia & Produção (Chão de Fábrica)
+# 🏃 Sprint Atual: FASE 6 — Integrações Fiscais (NFe/NFSe) & Gateways de Pagamento
 
-> **Status:** Concluído com Sucesso ✅  
+> **Status:** Em Execução 🚀  
 > **Orquestrador:** `@Orchestrator-Architect`  
-> **Agentes Envolvidos:** `@Core-SecOps-Agent`, `@Backend-Domain-Agent`, `@Frontend-UX-Agent`, `@QA-Security-Validator`  
-> **Objetivo:** Implementar Fichas Técnicas (BOMs) versionadas com rollup de custos e prevenção de ciclos, Centros de Trabalho e Roteiros Produtivos, Ordens de Produção (OPs) com reserva e baixa atômica de matérias-primas e entrada de produtos acabados no Kardex (`KardexLedgerService`), interface Desktop ERP e Mobile/Tablet PWA para Chão de Fábrica (`ShopFloorMobileLayout`) com Play/Pause e apontamento de produção/perda, e testes de segurança e isolamento Cross-Tenant.
+> **Agentes Envolvidos:** `@Core-SecOps-Agent`, `@Integrations-Fiscal-Agent`, `@Backend-Domain-Agent`, `@Frontend-UX-Agent`, `@QA-Security-Validator`  
+> **Objetivo:** Implementar o Cofre de Certificados Digitais A1 (`.pfx`) e Parâmetros Fiscais (`tenant_tax_settings`); Configuração e Adapter Pattern de Gateways de Pagamento (`payment_gateway_settings`, `AsaasAdapter`, `StripeAdapter`, `MercadoPagoAdapter`) para Pix Dinâmico, Boletos com QR Code e Cartão de Crédito; Receptor de Webhooks blindado com validação HMAC e tabela de idempotência (`webhook_events`) com baixa automática no Contas a Receber; Motor de Emissão Fiscal Assíncrona (`fiscal_invoices`, `fiscal_invoice_events`) com Jobs de Fila multi-tenant (`EmitFiscalInvoiceJob` via `TenantAwareJob`) e salvamento de XML e DANFE em Storage seguro; Interfaces Desktop ERP de Monitoramento Fiscal e Gestão de Gateways; Suíte de Testes com validação de idempotência, assinatura HMAC e isolamento multi-tenant.
 
 ---
 
-## 📐 ERD e Modelo Relacional da Fase 3 (Double Lock: Tenant ID + RLS)
+## 📐 ERD e Modelo Relacional da Fase 6 (Double Lock: Tenant ID + RLS)
 
-### 1. `work_centers` (Centros de Trabalho)
+### 1. `tenant_tax_settings` (Parâmetros Fiscais & Certificado A1)
 - `id` (UUID PK)
 - `tenant_id` (UUID NOT NULL, Index)
-- `code` (string, ex: CT-CORTE, CT-USIN, CT-PINT)
-- `name` (string)
-- `description` (text, nullable)
-- `hourly_cost` (`NUMERIC(15, 4)`, default 0)
-- `capacity_per_day_hours` (`NUMERIC(15, 2)`, default 8.00)
+- `certificate_path` (string, nullable) - Caminho no Storage privado para o `.pfx`
+- `certificate_password` (text, nullable) - Criptografado com `VaultEncryption` (AES-256-GCM + HKDF)
+- `certificate_expires_at` (timestamp, nullable)
+- `environment` (string: HOMOLOGATION, PRODUCTION - default HOMOLOGATION)
+- `tax_regime` (string: SIMPLES_NACIONAL, LUCRO_PRESUMIDO, LUCRO_REAL - default SIMPLES_NACIONAL)
+- `state_registration` (string, max 30) - Inscrição Estadual
+- `municipal_registration` (string, nullable, max 30)
+- `nfe_series` (integer, default 1)
+- `next_nfe_number` (integer, default 1)
+- `default_cfop` (string, max 10, default '5101')
+- `default_csosn` (string, nullable, max 10, default '102')
+- `default_cst` (string, nullable, max 10)
+- `default_iss_rate` (`NUMERIC(5, 2)`, default 0.00)
+- `created_at`, `updated_at`
+- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id)`, `FK (tenant_id) -> tenants(id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('tenant_tax_settings')`
+
+### 2. `payment_gateway_settings` (Gateways de Cobrança do Tenant)
+- `id` (UUID PK)
+- `tenant_id` (UUID NOT NULL, Index)
+- `gateway` (string: ASAAS, STRIPE, MERCADOPAGO)
+- `api_key` (text NOT NULL) - Criptografado via `VaultEncryption`
+- `webhook_secret` (text, nullable) - Criptografado via `VaultEncryption`
+- `is_sandbox` (boolean, default true)
 - `is_active` (boolean, default true)
+- `is_default` (boolean, default false)
 - `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, code)`, `FK (tenant_id) -> tenants(id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('work_centers')`
+- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, gateway)`, `FK (tenant_id) -> tenants(id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('payment_gateway_settings')`
 
-### 2. `boms` (Fichas Técnicas / Bill of Materials)
+### 3. `webhook_events` (Idempotência e Auditoria de Webhooks)
 - `id` (UUID PK)
 - `tenant_id` (UUID NOT NULL, Index)
-- `item_id` (UUID NOT NULL)
-- `code` (string, ex: BOM-MESA-01)
-- `version` (integer, default 1)
-- `description` (text, nullable)
-- `batch_size` (`NUMERIC(15, 4)`, default 1.0000)
-- `total_estimated_cost` (`NUMERIC(15, 4)`, default 0)
-- `is_active` (boolean, default true)
-- `is_default` (boolean, default true)
+- `gateway` (string: ASAAS, STRIPE, MERCADOPAGO)
+- `external_event_id` (string NOT NULL) - ID único enviado pelo gateway
+- `event_type` (string NOT NULL, ex: PAYMENT_RECEIVED, payment_intent.succeeded)
+- `financial_entry_id` (UUID, nullable)
+- `payload` (jsonb NOT NULL)
+- `status` (string: PROCESSED, FAILED, IGNORED)
+- `error_message` (text, nullable)
+- `processed_at` (timestamp, nullable)
 - `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, item_id, version)`, `FK (tenant_id) -> tenants(id)`
-- **Composite FKs:** `(tenant_id, item_id) -> items(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('boms')`
+- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, gateway, external_event_id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('webhook_events')`
 
-### 3. `bom_items` (Insumos da Ficha Técnica)
+### 4. `fiscal_invoices` (Notas Fiscais Eletrônicas NFe / NFSe)
 - `id` (UUID PK)
 - `tenant_id` (UUID NOT NULL, Index)
-- `bom_id` (UUID NOT NULL)
-- `item_id` (UUID NOT NULL)
-- `unit_of_measure_id` (UUID NOT NULL)
-- `quantity` (`NUMERIC(15, 4)`, NOT NULL)
-- `scrap_rate_percentage` (`NUMERIC(5, 2)`, default 0.00)
-- `unit_cost` (`NUMERIC(15, 4)`, default 0)
-- `total_cost` (`NUMERIC(15, 4)`, default 0)
-- `notes` (string, nullable)
+- `sales_order_id` (UUID, nullable)
+- `partner_id` (UUID NOT NULL)
+- `invoice_type` (string: NFE, NFSE - default NFE)
+- `invoice_number` (integer NOT NULL)
+- `series` (integer NOT NULL)
+- `environment` (string: HOMOLOGATION, PRODUCTION)
+- `access_key` (string, max 44, nullable, index) - Chave de 44 dígitos da NFe
+- `protocol_number` (string, max 50, nullable)
+- `status` (string: DRAFT, PROCESSING, AUTHORIZED, REJECTED, CANCELLED)
+- `total_amount` (`NUMERIC(15, 2)`)
+- `tax_amount` (`NUMERIC(15, 2)`, default 0.00)
+- `xml_path` (string, nullable)
+- `pdf_path` (string, nullable)
+- `rejection_reason` (text, nullable)
+- `issued_at` (timestamp, nullable)
+- `authorized_at` (timestamp, nullable)
+- `cancelled_at` (timestamp, nullable)
+- `payload` (jsonb, nullable)
 - `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`
+- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, invoice_type, series, invoice_number)`
 - **Composite FKs:**
-  - `(tenant_id, bom_id) -> boms(tenant_id, id) ON DELETE CASCADE`
-  - `(tenant_id, item_id) -> items(tenant_id, id)`
-  - `(tenant_id, unit_of_measure_id) -> units_of_measure(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('bom_items')`
-
-### 4. `routing_steps` (Etapas do Roteiro Produtivo)
-- `id` (UUID PK)
-- `tenant_id` (UUID NOT NULL, Index)
-- `bom_id` (UUID NOT NULL)
-- `work_center_id` (UUID NOT NULL)
-- `sequence` (integer, default 1)
-- `name` (string)
-- `description` (text, nullable)
-- `setup_time_minutes` (`NUMERIC(10, 2)`, default 0)
-- `run_time_minutes_per_unit` (`NUMERIC(10, 2)`, default 0)
-- `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, bom_id, sequence)`
-- **Composite FKs:**
-  - `(tenant_id, bom_id) -> boms(tenant_id, id) ON DELETE CASCADE`
-  - `(tenant_id, work_center_id) -> work_centers(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('routing_steps')`
-
-### 5. `production_orders` (Ordens de Produção)
-- `id` (UUID PK)
-- `tenant_id` (UUID NOT NULL, Index)
-- `order_number` (string)
-- `item_id` (UUID NOT NULL)
-- `bom_id` (UUID NOT NULL)
-- `warehouse_id` (UUID NOT NULL) - Depósito destino do produto acabado
-- `materials_warehouse_id` (UUID NOT NULL) - Depósito de origem dos materiais
-- `planned_quantity` (`NUMERIC(15, 4)`, NOT NULL)
-- `produced_quantity` (`NUMERIC(15, 4)`, default 0)
-- `scrapped_quantity` (`NUMERIC(15, 4)`, default 0)
-- `status` (string: DRAFT, RELEASED, IN_PROGRESS, COMPLETED, CANCELLED)
-- `priority` (string: LOW, MEDIUM, HIGH, URGENT)
-- `start_date` (date, nullable)
-- `due_date` (date, nullable)
-- `actual_start_at` (timestamp, nullable)
-- `actual_end_at` (timestamp, nullable)
-- `notes` (text, nullable)
-- `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`, `UNIQUE (tenant_id, order_number)`
-- **Composite FKs:**
-  - `(tenant_id, item_id) -> items(tenant_id, id)`
-  - `(tenant_id, bom_id) -> boms(tenant_id, id)`
-  - `(tenant_id, warehouse_id) -> warehouses(tenant_id, id)`
-  - `(tenant_id, materials_warehouse_id) -> warehouses(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('production_orders')`
-
-### 6. `production_order_materials` (Empenhos de Insumos da OP)
-- `id` (UUID PK)
-- `tenant_id` (UUID NOT NULL, Index)
-- `production_order_id` (UUID NOT NULL)
-- `item_id` (UUID NOT NULL)
-- `unit_of_measure_id` (UUID NOT NULL)
-- `planned_quantity` (`NUMERIC(15, 4)`, NOT NULL)
-- `consumed_quantity` (`NUMERIC(15, 4)`, default 0)
-- `unit_cost` (`NUMERIC(15, 4)`, default 0)
-- `total_cost` (`NUMERIC(15, 4)`, default 0)
-- `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`
-- **Composite FKs:**
-  - `(tenant_id, production_order_id) -> production_orders(tenant_id, id) ON DELETE CASCADE`
-  - `(tenant_id, item_id) -> items(tenant_id, id)`
-  - `(tenant_id, unit_of_measure_id) -> units_of_measure(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('production_order_materials')`
-
-### 7. `production_order_operations` (Operações e Apontamentos Chão de Fábrica)
-- `id` (UUID PK)
-- `tenant_id` (UUID NOT NULL, Index)
-- `production_order_id` (UUID NOT NULL)
-- `routing_step_id` (UUID, nullable)
-- `work_center_id` (UUID NOT NULL)
-- `sequence` (integer, default 1)
-- `status` (string: PENDING, IN_PROGRESS, PAUSED, COMPLETED)
-- `started_at` (timestamp, nullable)
-- `paused_at` (timestamp, nullable)
-- `completed_at` (timestamp, nullable)
-- `executed_time_seconds` (integer, default 0)
-- `operator_user_id` (UUID, nullable)
-- `notes` (text, nullable)
-- `created_at`, `updated_at`
-- **Constraints:** `UNIQUE (tenant_id, id)`
-- **Composite FKs:**
-  - `(tenant_id, production_order_id) -> production_orders(tenant_id, id) ON DELETE CASCADE`
-  - `(tenant_id, work_center_id) -> work_centers(tenant_id, id)`
-- **RLS:** `PostgresRlsHelper::enableTenantRls('production_order_operations')`
+  - `(tenant_id, partner_id) -> partners(tenant_id, id)`
+  - `(tenant_id, sales_order_id) -> sales_orders(tenant_id, id)`
+- **RLS:** `PostgresRlsHelper::enableTenantRls('fiscal_invoices')`
 
 ---
 
-## 📑 Contratos Técnicos de Backend & Frontend
+## 🏗️ Padrões de Arquitetura & Adapters
 
-### DTOs & Services
-- `BomRollupService`: Cálculo de custo estimado com precisão `bcmath` e detecção de dependência circular (`CircularBomDependencyException`).
-- `ProductionOrderService`:
-  - `release(ProductionOrder $order)`: Altera status para `RELEASED`, calcula empenho de materiais (`production_order_materials`) baseado na BOM multiplicada pela quantidade planejada e gera operações (`production_order_operations`) a partir de `routing_steps`.
-  - `startOperation(ProductionOrderOperation $op, ?string $userId)`: Inicia timer e status `IN_PROGRESS`.
-  - `pauseOperation(ProductionOrderOperation $op)`: Pausa timer e acumula tempo executado.
-  - `completeOperation(ProductionOrderOperation $op)`: Conclui etapa.
-  - `recordProduction(ProductionOrder $order, string $producedQty, string $scrappedQty, ?string $notes)`:
-    - Baixa proporcional de matérias-primas no Kardex (`KardexMovementType::OutProduction`).
-    - Registro de sucata/perda no Kardex (`KardexMovementType::OutScrap`) se houver.
-    - Entrada de produto acabado no estoque (`KardexMovementType::InProduction`) com custo unitário real calculado.
-    - Atualiza saldo e status da OP para `COMPLETED` se `produced_quantity + scrapped_quantity >= planned_quantity`.
+### 1. Payment Gateway Adapter Pattern
+- `PaymentGatewayInterface`:
+  - `createPixCharge(CreateChargeDTO $dto): ChargeResponseDTO`
+  - `createBoletoCharge(CreateChargeDTO $dto): ChargeResponseDTO`
+  - `createCreditCardCharge(CreateChargeDTO $dto): ChargeResponseDTO`
+  - `verifyWebhookSignature(string $rawPayload, string $signatureHeader, string $secret): bool`
+  - `parseWebhookPayload(array $payload): ParsedWebhookEventDTO`
+- Implementações:
+  - `AsaasAdapter`: Suporte a QR Code Pix, Boleto com código de barras, Webhook token header.
+  - `StripeAdapter`: Suporte a PaymentIntent, Boleto, HMAC SHA-256 (`Stripe-Signature`).
+  - `MercadoPagoAdapter`: Suporte a Pix Dinâmico, HMAC SHA-256 (`x-signature`).
+- `PaymentGatewayManager`: Resolução dinâmica do gateway ativo do Tenant.
 
-### Endpoints (Rotas Operacionais em `/app/production`)
-- `GET /app/production/work-centers` -> `WorkCenterController@index`
-- `POST /app/production/work-centers` -> `WorkCenterController@store`
-- `GET /app/production/boms` -> `BomController@index`
-- `POST /app/production/boms` -> `BomController@store`
-- `GET /app/production/boms/{bom}` -> `BomController@show`
-- `POST /app/production/boms/{bom}/rollup` -> `BomController@calculateRollup`
-- `GET /app/production/orders` -> `ProductionOrderController@index`
-- `POST /app/production/orders` -> `ProductionOrderController@store`
-- `GET /app/production/orders/{order}` -> `ProductionOrderController@show`
-- `POST /app/production/orders/{order}/release` -> `ProductionOrderController@release`
-- `POST /app/production/orders/{order}/record-production` -> `ProductionOrderController@recordProduction`
-- `GET /app/production/shop-floor` -> `ShopFloorController@index` (PWA)
-- `POST /app/production/operations/{operation}/start` -> `ShopFloorController@start`
-- `POST /app/production/operations/{operation}/pause` -> `ShopFloorController@pause`
-- `POST /app/production/operations/{operation}/complete` -> `ShopFloorController@complete`
+### 2. Receptor de Webhooks Blindado
+- Endpoint público: `POST /api/webhooks/gateway/{gateway}` com roteamento por subdomínio ou tenant header / payload.
+- Validação HMAC criptográfica obrigatória antes do processamento.
+- Transação atômica com trava `webhook_events`:
+  - Se `(tenant_id, gateway, external_event_id)` já existir: retorna 200 idempotente imediatamente sem reprocessar.
+  - Se novo: processa o evento de confirmação de pagamento, localiza o título em `financial_entries` e aciona `SettleFinancialPaymentAction`.
+
+### 3. Emissão Fiscal Assíncrona & SEFAZ Mock/Real
+- `EmitFiscalInvoiceJob` implementando `TenantAwareJob` via `InteractsWithTenantQueue`.
+- `FiscalEmitterService`:
+  - Geração de Chave de Acesso de 44 dígitos (UF + AAMM + CNPJ + Modelo 55 + Série + Número + Tipo de Emissão + Código Numérico + DV ponderado Módulo 11).
+  - Assinatura digital do XML da NFe via Certificado A1 do cofre `VaultEncryption`.
+  - Transmissão assíncrona com fallback e protocolo de autorização SEFAZ (mock padrão para homologação conforme MOC 4.00).
+  - Armazenamento de XML assinado e PDF DANFE em Storage seguro.
 
 ---
 
 ## 🗓️ Checklist de Execução por Agente
-- [x] `@Core-SecOps-Agent`: 7 Migrations com RLS e FKs compostas.
-- [x] `@Backend-Domain-Agent`: Models `TenantModel`, DTOs, Enums, `BomRollupService`, `ProductionOrderService`, FormRequests com `TenantExists` e Controllers.
-- [x] `@Frontend-UX-Agent`: Páginas React/Inertia Desktop (BOMs, Centros de Trabalho, Ordens de Produção) e Mobile PWA (`ShopFloorMobileLayout`).
-- [x] `@QA-Security-Validator`: Suíte `ProductionEngineeringTest.php` com cálculo de rollup, prevenção de loop circular, integração Kardex e isolamento cross-tenant.
+- [x] `@Core-SecOps-Agent`: 4 Migrations com RLS e FKs compostas por `tenant_id` (`tenant_tax_settings`, `payment_gateway_settings`, `webhook_events`, `fiscal_invoices`).
+- [x] `@Backend-Domain-Agent` & `@Integrations-Fiscal-Agent`: Models `TenantModel`, Adapters (`AsaasAdapter`, `StripeAdapter`, `MercadoPagoAdapter`), Gateway Manager, `WebhookService`, `FiscalEmitterService`, `EmitFiscalInvoiceJob` (`TenantAwareJob`), FormRequests e Controllers.
+- [x] `@Frontend-UX-Agent`: Páginas React/Inertia Desktop & Mobile (Configurações Fiscais & Certificado A1, Gestão de Gateways, Painel de Notas Fiscais NFe/NFSe com visualizador e download de XML/DANFE).
+- [x] `@QA-Security-Validator`: Suíte `FiscalIntegrationTest.php` com testes de idempotência de webhook, validação HMAC, emissão assíncrona em fila e isolamento multi-tenant estrito (100% dos 46 testes da aplicação passando).
+- [x] `@Backend-Domain-Agent` & `@QA-Security-Validator`: Seeder de Diagnóstico e Estresse de Sistema Completo (`FullSystemDemoSeeder.php`) e Teste de Fumaça Integrado de Ponta a Ponta (`FullSystemDiagnosticTest.php`) cobrindo todos os 6 módulos do SGI v2.0 com 48 testes e 298 asserções 100% aprovados.

@@ -36,7 +36,7 @@ final class DashboardController
                 'max_users' => $plan?->max_users ?? 0,
                 'features' => $plan?->features ?? [],
             ],
-            'userRole' => $user->roles()->where('tenant_id', $tenant?->id)->value('name') ?? 'Colaborador',
+            'userRole' => $user->roles()->where('model_has_roles.tenant_id', $tenant?->id)->value('roles.name') ?? 'Colaborador',
         ]);
     }
 }

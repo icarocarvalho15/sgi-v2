@@ -69,8 +69,8 @@ final class SetTenantContext
         }
 
         // 3. Sessão ativa
-        if ($request->hasSession() && $request->session()->has('active_tenant_id')) {
-            $sessionTenantId = $request->session()->get('active_tenant_id');
+        if ($request->hasSession()) {
+            $sessionTenantId = $request->session()->get('active_tenant_id') ?? $request->session()->get('current_tenant_id');
             if (is_string($sessionTenantId) && $sessionTenantId !== '') {
                 $tenant = Tenant::query()->find($sessionTenantId);
                 if ($tenant instanceof Tenant) {

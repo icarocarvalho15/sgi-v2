@@ -9,6 +9,9 @@ import {
     Layers, 
     Boxes,
     FileSpreadsheet,
+    DollarSign,
+    TrendingUp,
+    Settings,
     ShieldCheck, 
     CheckCircle2, 
     AlertCircle 
@@ -30,6 +33,9 @@ export default function AppLayout({ title, children }: Props) {
         { label: 'Chão de Fábrica (OPs)', href: '/production/orders', icon: Sliders },
         { label: 'Estoque & Saldos', href: '/inventory/balances', icon: Boxes },
         { label: 'Razão Kardex', href: '/inventory/kardex', icon: FileSpreadsheet },
+        { label: 'Financeiro (Títulos)', href: '/finance/entries', icon: DollarSign },
+        { label: 'Fluxo & DRE', href: '/finance/reports', icon: TrendingUp },
+        { label: 'Config. Fiscais', href: '/settings/fiscal', icon: Settings },
     ];
 
     return (

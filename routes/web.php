@@ -36,4 +36,16 @@ Route::middleware([SetTenantContext::class])->group(function () {
     Route::get('inventory/kardex', [\App\Modules\Inventory\Controllers\KardexController::class, 'index'])->name('tenant.inventory.kardex.index');
     Route::get('inventory/adjustments/create', [\App\Modules\Inventory\Controllers\InventoryAdjustmentController::class, 'create'])->name('tenant.inventory.adjustments.create');
     Route::post('inventory/adjustments', [\App\Modules\Inventory\Controllers\InventoryAdjustmentController::class, 'store'])->name('tenant.inventory.adjustments.store');
+
+    // Módulo Financeiro & Contas a Pagar/Receber
+    Route::resource('finance/entries', \App\Modules\Finance\Controllers\FinancialEntryController::class)->names('tenant.finance.entries');
+    Route::post('finance/payments', [\App\Modules\Finance\Controllers\FinancialPaymentController::class, 'store'])->name('tenant.finance.payments.store');
+    Route::get('finance/reports', [\App\Modules\Finance\Controllers\FinancialReportController::class, 'index'])->name('tenant.finance.reports.index');
+
+    // Módulo Configurações Fiscais e Gateways
+    Route::get('settings/fiscal', [\App\Modules\Integrations\Controllers\FiscalSettingsController::class, 'index'])->name('tenant.settings.fiscal.index');
+    Route::post('settings/fiscal', [\App\Modules\Integrations\Controllers\FiscalSettingsController::class, 'store'])->name('tenant.settings.fiscal.store');
 });
+
+// Receptor Global de Webhooks (Blindado com Validação HMAC e Idempotência)
+Route::post('api/webhooks/{provider}', [\App\Modules\Integrations\Controllers\WebhookController::class, 'handle'])->name('webhooks.handle');

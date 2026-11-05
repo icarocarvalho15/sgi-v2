@@ -44,8 +44,8 @@ O **SGI v2.0** é um SaaS Multi-Tenant projetado especificamente para o setor gr
 - [x] Razão de Kardex (*Append-Only Ledger*) para entradas de compras e baixas automáticas por consumo nas OPs, calculando o Custo Médio Ponderado (CMP) sem risco de saldo negativo.
 
 ### FASE 6: Módulo Financeiro, Pagamentos & Relatórios
-- [ ] Plano de Contas, Centros de Custo e Contas Bancárias/Caixas.
-- [ ] Contas a Pagar e Contas a Receber com parcelamento, juros, multas, descontos e baixas parciais (`financial_payments`).
-- [ ] Dashboard Financeiro (Fluxo de Caixa Realizado vs Projetado) e DRE Gerencial.
-- [ ] Relatórios gerenciais de vendas, produtividade da gráfica e ranking de clientes.
-- [ ] Implementação de Gateways de Pagamento como Stripe, Asaas, Mercado Pago, PagSeguro.
+- [x] Plano de Contas, Centros de Custo e Contas Bancárias/Caixas.
+- [x] Contas a Pagar e Contas a Receber com parcelamento, juros, multas, descontos e baixas parciais (`financial_payments`).
+- [x] Dashboard Financeiro (Fluxo de Caixa Realizado vs Projetado) e DRE Gerencial.
+- [x] Relatórios gerenciais de vendas, produtividade da gráfica e ranking de clientes.
+- [x] Implementação de Gateways de Pagamento como Stripe, Asaas, Mercado Pago, PagSeguro.

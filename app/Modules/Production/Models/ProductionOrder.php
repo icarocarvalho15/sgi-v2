@@ -9,6 +9,7 @@ use App\Modules\CoreAdmin\Models\TenantStatus;
 use App\Modules\Quotes\Models\QuoteItem;
 use App\Modules\SalesOrders\Models\SalesOrder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $order_number
  * @property string|null $sales_order_id
  * @property string|null $quote_item_id
+ * @property string|null $bom_id
  * @property string $status_id
  * @property string $product_name
  * @property int $target_quantity
@@ -37,6 +39,7 @@ class ProductionOrder extends TenantModel
         'order_number',
         'sales_order_id',
         'quote_item_id',
+        'bom_id',
         'status_id',
         'product_name',
         'target_quantity',
@@ -71,8 +74,23 @@ class ProductionOrder extends TenantModel
         return $this->belongsTo(QuoteItem::class, 'quote_item_id');
     }
 
+    public function bom(): BelongsTo
+    {
+        return $this->belongsTo(Bom::class, 'bom_id');
+    }
+
     public function status(): BelongsTo
     {
         return $this->belongsTo(TenantStatus::class, 'status_id');
+    }
+
+    public function materials(): HasMany
+    {
+        return $this->hasMany(ProductionOrderMaterial::class, 'production_order_id');
+    }
+
+    public function timeLogs(): HasMany
+    {
+        return $this->hasMany(ProductionTimeLog::class, 'production_order_id');
     }
 }

@@ -36,8 +36,8 @@ O **SGI v2.0** é um SaaS Multi-Tenant projetado especificamente para o setor gr
 - [x] Conversão em 1-Clique: Orçamento Aprovado -> Gera Pedido de Venda -> Dispara Ordem de Produção + Reserva de Insumos + Lançamento Financeiro.
 
 ### FASE 4: Engenharia & Chão de Fábrica (Ordens de Produção)
-- [ ] Ficha Técnica / Composição do Produto Gráfico/Brinde (Insumos, substratos, tintas, chapas, embalagens).
-- [ ] Ordens de Produção (OPs) com acompanhamento pelas etapas produtivas parametrizadas pelos status da gráfica.
+- [x] Ficha Técnica / Composição do Produto Gráfico/Brinde (Insumos, substratos, tintas, chapas, embalagens).
+- [x] Ordens de Produção (OPs) com acompanhamento pelas etapas produtivas parametrizadas pelos status da gráfica.
 
 ### FASE 5: Suprimentos & Controle de Estoque (Kardex Imutável)
 - [ ] Cadastro de Insumos e Produtos (Papéis, Chapas CTP, Tintas, Brindes em estoque bruto).

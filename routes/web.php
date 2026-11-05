@@ -24,4 +24,10 @@ Route::middleware([SetTenantContext::class])->group(function () {
     Route::post('quotes/calculate', [QuoteController::class, 'calculate'])->name('quotes.calculate');
     Route::post('quotes/{quote}/convert', [QuoteController::class, 'convert'])->name('quotes.convert');
     Route::resource('quotes', QuoteController::class);
+
+    // Módulo Engenharia & Chão de Fábrica (PCP Gráfico)
+    Route::resource('production/boms', \App\Modules\Production\Controllers\BomController::class)->names('production.boms');
+    Route::resource('production/orders', \App\Modules\Production\Controllers\ProductionOrderController::class)->names('production.orders');
+    Route::post('production/orders/{order}/status', [\App\Modules\Production\Controllers\ProductionOrderController::class, 'updateStatus'])->name('production.orders.status');
+    Route::post('production/orders/{order}/log-time', [\App\Modules\Production\Controllers\ProductionOrderController::class, 'logTime'])->name('production.orders.log-time');
 });

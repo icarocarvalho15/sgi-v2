@@ -13,6 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
+            \App\Core\Tenancy\Middleware\SetTenantContext::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
         $middleware->validateCsrfTokens(except: [

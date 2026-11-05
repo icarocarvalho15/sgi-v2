@@ -26,6 +26,14 @@ class SetTenantContext
             if (function_exists('setPermissionsTeamId')) {
                 setPermissionsTeamId($tenant->id);
             }
+
+            // Em ambiente local de desenvolvimento, auto-loga o operador demo se não autenticado
+            if (app()->environment('local') && $request->user() === null) {
+                $demoUser = \App\Models\User::where('tenant_id', $tenant->id)->first();
+                if ($demoUser) {
+                    \Illuminate\Support\Facades\Auth::login($demoUser);
+                }
+            }
         }
 
         try {
@@ -51,24 +59,50 @@ class SetTenantContext
      */
     protected function resolveTenant(Request $request): ?Tenant
     {
-        // 1. Authenticated user tenant_id
+        // 1. Session tenant_id (permite alternar tenant no painel)
+        if ($request->hasSession() && $request->session()->has('current_tenant_id')) {
+            $sessionTenantId = $request->session()->get('current_tenant_id');
+            $tenant = Tenant::find($sessionTenantId);
+            if ($tenant) {
+                return $tenant;
+            }
+        }
+
+        // 2. Query param ?tenant_id=...
+        $queryTenantId = $request->query('tenant_id');
+        if (! empty($queryTenantId)) {
+            $tenant = Tenant::find($queryTenantId);
+            if ($tenant) {
+                return $tenant;
+            }
+        }
+
+        // 3. Authenticated user tenant_id
         $user = $request->user();
         if ($user !== null && ! empty($user->tenant_id)) {
             return Tenant::find($user->tenant_id);
         }
 
-        // 2. Explicit header (e.g., API integration or tests)
+        // 4. Explicit header (e.g., API integration or tests)
         $headerTenantId = $request->header('X-Tenant-ID');
         if (! empty($headerTenantId)) {
             return Tenant::find($headerTenantId);
         }
 
-        // 3. Subdomain resolution
+        // 5. Subdomain resolution
         $host = $request->getHost();
         $parts = explode('.', $host);
         if (count($parts) > 2) {
             $subdomain = $parts[0];
-            return Tenant::where('subdomain', $subdomain)->first();
+            $tenant = Tenant::where('subdomain', $subdomain)->first();
+            if ($tenant) {
+                return $tenant;
+            }
+        }
+
+        // 6. Fallback para desenvolvimento local: seleciona o Tenant da demo
+        if (app()->environment('local')) {
+            return Tenant::where('name', 'like', '%Express%')->first() ?? Tenant::first();
         }
 
         return null;

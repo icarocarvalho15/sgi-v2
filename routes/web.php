@@ -9,7 +9,7 @@ use App\Modules\Quotes\Controllers\QuoteController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect('/crm/partners');
 });
 
 Route::middleware([SetTenantContext::class])->group(function () {

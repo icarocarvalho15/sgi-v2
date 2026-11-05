@@ -24,16 +24,16 @@ O **SGI v2.0** é um SaaS Multi-Tenant projetado especificamente para o setor gr
 ### FASE 1: Core Admin (Landlord), Planos SaaS & Customização de Status por Tenant
 - [x] Gestão global de Tenants (Gráficas e Brindes assinantes) e planos de assinatura.
 - [x] **Engine de Status Dinâmicos (`tenant_statuses`):** Módulo onde cada Tenant pode criar, editar, colorir e reordenar seus próprios status de andamento para Orçamentos, Ordens de Produção e Kanban de Vendas.
-- [ ] Painel de Impersonation auditado para suporte técnico.
+- [x] Painel de Impersonation auditado para suporte técnico.
 
 ### FASE 2: CRM, Clientes, Fornecedores & Funil de Vendas
-- [ ] Cadastro unificado de Clientes e Fornecedores (`partners`) com múltiplos endereços e validação de CNPJ/CPF.
-- [ ] Funil de Oportunidades (Kanban com `dnd-kit`) integrado aos status customizáveis do tenant.
+- [x] Cadastro unificado de Clientes e Fornecedores (`partners`) com múltiplos endereços e validação de CNPJ/CPF.
+- [x] Funil de Oportunidades (Kanban com `dnd-kit`) integrado aos status customizáveis do tenant.
 
 ### FASE 3: Orçamentos Técnicos (Gráficas & Brindes)
-- [ ] Motor de Orçamento especializado para o nicho: cálculo por quantidade, formatos de papel/substrato, quantidade de cores (ex: 4x0, 4x4), chapas CTP, fotolitos, clichês e personalizações de brindes (silk, laser, sublimação).
-- [ ] Simulação de margem, markup, impostos e prazo de entrega.
-- [ ] Conversão em 1-Clique: Orçamento Aprovado -> Gera Pedido de Venda -> Dispara Ordem de Produção + Reserva de Insumos + Lançamento Financeiro.
+- [x] Motor de Orçamento especializado para o nicho: cálculo por quantidade, formatos de papel/substrato, quantidade de cores (ex: 4x0, 4x4), chapas CTP, fotolitos, clichês e personalizações de brindes (silk, laser, sublimação).
+- [x] Simulação de margem, markup, impostos e prazo de entrega.
+- [x] Conversão em 1-Clique: Orçamento Aprovado -> Gera Pedido de Venda -> Dispara Ordem de Produção + Reserva de Insumos + Lançamento Financeiro.
 
 ### FASE 4: Engenharia & Chão de Fábrica (Ordens de Produção)
 - [ ] Ficha Técnica / Composição do Produto Gráfico/Brinde (Insumos, substratos, tintas, chapas, embalagens).

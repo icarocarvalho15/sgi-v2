@@ -15,5 +15,14 @@
     },
     "optionalDependencies": {
         "@laravel/multiplex": "^0.4.1"
+    },
+    "dependencies": {
+        "@inertiajs/react": "^3.11.0",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "@vitejs/plugin-react": "^6.2.1",
+        "lucide-react": "^1.69.0",
+        "react": "^19.3.1",
+        "react-dom": "^19.3.1"
     }
 }

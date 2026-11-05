@@ -3,15 +3,37 @@
 declare(strict_types=1);
 
 use App\Core\Tenancy\Middleware\SetTenantContext;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Middleware\EnsureSuperAdmin;
+use App\Modules\CentralAdmin\Controllers\TenantManagementController;
+use App\Modules\CoreAdmin\Controllers\TenantStatusController;
 use App\Modules\CRM\Controllers\CrmKanbanController;
 use App\Modules\CRM\Controllers\PartnerController;
 use App\Modules\Quotes\Controllers\QuoteController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return redirect('/crm/partners');
+// Autenticação (Login / Logout)
+Route::middleware('guest')->group(function () {
+    Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
+    Route::post('login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 });
 
+Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+
+// Rota raiz: redireciona para login se deslogado, ou CRM se autenticado
+Route::get('/', function () {
+    return auth()->check() ? redirect('/crm/partners') : redirect()->route('login');
+});
+
+// Painel do Landlord SaaS (Gestão de Tenants e Suporte com Auditoria de Personificação)
+Route::middleware(['web', EnsureSuperAdmin::class])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('tenants', [TenantManagementController::class, 'index'])->name('tenants.index');
+    Route::post('tenants', [TenantManagementController::class, 'store'])->name('tenants.store');
+    Route::post('tenants/{tenant}/impersonate', [TenantManagementController::class, 'impersonate'])->name('tenants.impersonate');
+    Route::post('impersonate/stop', [TenantManagementController::class, 'stopImpersonation'])->name('impersonate.stop');
+});
+
+// Rotas do Tenant (Isolamento RLS Multi-Tenant Automático)
 Route::middleware([SetTenantContext::class])->group(function () {
     // Módulo CRM: Clientes e Fornecedores
     Route::resource('crm/partners', PartnerController::class)->names('crm.partners');
@@ -45,6 +67,9 @@ Route::middleware([SetTenantContext::class])->group(function () {
     // Módulo Configurações Fiscais e Gateways
     Route::get('settings/fiscal', [\App\Modules\Integrations\Controllers\FiscalSettingsController::class, 'index'])->name('tenant.settings.fiscal.index');
     Route::post('settings/fiscal', [\App\Modules\Integrations\Controllers\FiscalSettingsController::class, 'store'])->name('tenant.settings.fiscal.store');
+
+    // Módulo Configurações: Status Customizáveis por Tenant (CRM, Orçamentos, PCP)
+    Route::resource('settings/statuses', TenantStatusController::class)->names('tenant.settings.statuses');
 });
 
 // Receptor Global de Webhooks (Blindado com Validação HMAC e Idempotência)

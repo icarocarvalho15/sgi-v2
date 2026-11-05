@@ -26,14 +26,6 @@ class SetTenantContext
             if (function_exists('setPermissionsTeamId')) {
                 setPermissionsTeamId($tenant->id);
             }
-
-            // Em ambiente local de desenvolvimento, auto-loga o operador demo se não autenticado
-            if (app()->environment('local') && $request->user() === null) {
-                $demoUser = \App\Models\User::where('tenant_id', $tenant->id)->first();
-                if ($demoUser) {
-                    \Illuminate\Support\Facades\Auth::login($demoUser);
-                }
-            }
         }
 
         try {

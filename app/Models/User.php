@@ -27,6 +27,7 @@ class User extends Authenticatable
         'email',
         'password',
         'tenant_id',
+        'is_super_admin',
     ];
 
     protected $hidden = [

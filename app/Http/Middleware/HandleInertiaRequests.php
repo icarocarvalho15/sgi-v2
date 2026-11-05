@@ -41,6 +41,10 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'tenant' => fn () => \App\Core\Tenancy\TenantContext::get(),
+            'impersonation' => fn () => [
+                'is_impersonating' => \App\Modules\CentralAdmin\Services\ImpersonationService::isImpersonating(),
+                'target_tenant' => \App\Modules\CentralAdmin\Services\ImpersonationService::targetTenant(),
+            ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

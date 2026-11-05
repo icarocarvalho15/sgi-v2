@@ -52,12 +52,23 @@ class FullSystemDemoSeeder extends Seeder
         TenantContext::set($tenant);
         DefaultStatusesSeederService::seedForTenant($tenant->id);
 
-        // 2. Criar Usuário Operador
-        $user = User::create([
+        // 2. Criar Usuário Operador da Gráfica e SuperAdmin Landlord
+        $user = User::forceCreate([
+            'id' => (string) Str::uuid(),
             'name' => 'Diretor Operacional Express',
-            'email' => 'operacao@express-' . Str::random(4) . '.com.br',
-            'password' => bcrypt('SenhaForte123!'),
+            'email' => 'operador@express.com',
+            'password' => bcrypt('Operador123!'),
             'tenant_id' => $tenant->id,
+            'is_super_admin' => false,
+        ]);
+
+        User::forceCreate([
+            'id' => (string) Str::uuid(),
+            'name' => 'SuperAdmin Landlord',
+            'email' => 'admin@sgi-erp.com',
+            'password' => bcrypt('Admin1234!'),
+            'tenant_id' => null,
+            'is_super_admin' => true,
         ]);
 
         // 3. Estrutura Financeira (Plano de Contas, Centros de Custo e Contas Bancárias)

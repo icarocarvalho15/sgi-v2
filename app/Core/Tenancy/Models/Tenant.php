@@ -48,6 +48,11 @@ class Tenant extends Model
         return $this->belongsTo(Plan::class, 'plan_id');
     }
 
+    public function users(): HasMany
+    {
+        return $this->hasMany(\App\Models\User::class, 'tenant_id');
+    }
+
     public function statuses(): HasMany
     {
         return $this->hasMany(\App\Modules\CoreAdmin\Models\TenantStatus::class, 'tenant_id');

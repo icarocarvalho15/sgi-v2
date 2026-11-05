@@ -81,4 +81,18 @@ final class ImpersonationService
     {
         return Session::has(self::SESSION_KEY);
     }
+
+    /**
+     * Gets the tenant currently being impersonated.
+     */
+    public static function targetTenant(): ?Tenant
+    {
+        $logId = Session::get(self::SESSION_KEY);
+        if ($logId !== null) {
+            $log = ImpersonationLog::with('tenant')->find($logId);
+            return $log?->tenant;
+        }
+
+        return null;
+    }
 }

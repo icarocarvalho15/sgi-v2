@@ -7,6 +7,8 @@ import {
     Printer, 
     Sliders, 
     Layers, 
+    Boxes,
+    FileSpreadsheet,
     ShieldCheck, 
     CheckCircle2, 
     AlertCircle 
@@ -26,6 +28,8 @@ export default function AppLayout({ title, children }: Props) {
         { label: 'Orçamentos Técnicos', href: '/quotes', icon: FileText },
         { label: 'Fichas Técnicas (BOM)', href: '/production/boms', icon: Layers },
         { label: 'Chão de Fábrica (OPs)', href: '/production/orders', icon: Sliders },
+        { label: 'Estoque & Saldos', href: '/inventory/balances', icon: Boxes },
+        { label: 'Razão Kardex', href: '/inventory/kardex', icon: FileSpreadsheet },
     ];
 
     return (

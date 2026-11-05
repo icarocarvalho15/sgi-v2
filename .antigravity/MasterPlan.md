@@ -40,8 +40,8 @@ O **SGI v2.0** é um SaaS Multi-Tenant projetado especificamente para o setor gr
 - [x] Ordens de Produção (OPs) com acompanhamento pelas etapas produtivas parametrizadas pelos status da gráfica.
 
 ### FASE 5: Suprimentos & Controle de Estoque (Kardex Imutável)
-- [ ] Cadastro de Insumos e Produtos (Papéis, Chapas CTP, Tintas, Brindes em estoque bruto).
-- [ ] Razão de Kardex (*Append-Only Ledger*) para entradas de compras e baixas automáticas por consumo nas OPs, calculando o Custo Médio Ponderado (CMP) sem risco de saldo negativo.
+- [x] Cadastro de Insumos e Produtos (Papéis, Chapas CTP, Tintas, Brindes em estoque bruto).
+- [x] Razão de Kardex (*Append-Only Ledger*) para entradas de compras e baixas automáticas por consumo nas OPs, calculando o Custo Médio Ponderado (CMP) sem risco de saldo negativo.
 
 ### FASE 6: Módulo Financeiro, Pagamentos & Relatórios
 - [ ] Plano de Contas, Centros de Custo e Contas Bancárias/Caixas.

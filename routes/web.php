@@ -30,4 +30,10 @@ Route::middleware([SetTenantContext::class])->group(function () {
     Route::resource('production/orders', \App\Modules\Production\Controllers\ProductionOrderController::class)->names('production.orders');
     Route::post('production/orders/{order}/status', [\App\Modules\Production\Controllers\ProductionOrderController::class, 'updateStatus'])->name('production.orders.status');
     Route::post('production/orders/{order}/log-time', [\App\Modules\Production\Controllers\ProductionOrderController::class, 'logTime'])->name('production.orders.log-time');
+
+    // Módulo Suprimentos & Controle de Estoque (Kardex Imutável)
+    Route::get('inventory/balances', [\App\Modules\Inventory\Controllers\InventoryBalanceController::class, 'index'])->name('tenant.inventory.balances.index');
+    Route::get('inventory/kardex', [\App\Modules\Inventory\Controllers\KardexController::class, 'index'])->name('tenant.inventory.kardex.index');
+    Route::get('inventory/adjustments/create', [\App\Modules\Inventory\Controllers\InventoryAdjustmentController::class, 'create'])->name('tenant.inventory.adjustments.create');
+    Route::post('inventory/adjustments', [\App\Modules\Inventory\Controllers\InventoryAdjustmentController::class, 'store'])->name('tenant.inventory.adjustments.store');
 });

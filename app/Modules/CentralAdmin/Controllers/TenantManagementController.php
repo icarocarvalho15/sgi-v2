@@ -33,10 +33,22 @@ class TenantManagementController extends Controller
             ->limit(10)
             ->get();
 
+        $totalActive = $tenants->where('status', 'active')->count();
+        $totalSuspended = $tenants->where('status', 'suspended')->count();
+        $totalUsers = $tenants->sum('users_count');
+        $mrr = $tenants->where('status', 'active')->sum(fn ($t) => (float) ($t->plan?->price ?? 0));
+
         return Inertia::render('Admin/Tenants/Index', [
             'tenants' => $tenants,
             'plans' => $plans,
             'recentLogs' => $recentLogs,
+            'stats' => [
+                'totalTenants' => $tenants->count(),
+                'activeTenants' => $totalActive,
+                'suspendedTenants' => $totalSuspended,
+                'totalUsers' => $totalUsers,
+                'mrr' => $mrr,
+            ],
             'isImpersonating' => ImpersonationService::isImpersonating(),
             'impersonatedTenant' => ImpersonationService::targetTenant(),
         ]);
@@ -62,6 +74,63 @@ class TenantManagementController extends Controller
 
         return redirect()->route('admin.tenants.index')
             ->with('success', "Tenant \"{$tenant->name}\" criado com sucesso e status operacionais inicializados!");
+    }
+
+    public function updateSubscription(Tenant $tenant, Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'plan_id' => ['nullable', 'uuid', 'exists:plans,id'],
+            'status' => ['required', 'string', 'in:active,suspended,cancelled'],
+        ]);
+
+        $tenant->update([
+            'plan_id' => $validated['plan_id'] ?? $tenant->plan_id,
+            'status' => $validated['status'],
+        ]);
+
+        return redirect()->route('admin.tenants.index')
+            ->with('success', "Assinatura e status da empresa \"{$tenant->name}\" atualizados com sucesso!");
+    }
+
+    public function metrics(): Response
+    {
+        $tenants = Tenant::with('plan')->withCount('users')->get();
+        $plans = Plan::withCount('tenants')->get();
+
+        $activeTenants = $tenants->where('status', 'active');
+        $mrr = $activeTenants->sum(fn ($t) => (float) ($t->plan?->price ?? 0));
+        $arr = $mrr * 12;
+
+        $planDistribution = $plans->map(function ($plan) {
+            return [
+                'name' => $plan->name,
+                'count' => $plan->tenants_count,
+                'revenue' => (float) $plan->price * $plan->tenants_count,
+            ];
+        });
+
+        return Inertia::render('Admin/Metrics/Index', [
+            'metrics' => [
+                'mrr' => $mrr,
+                'arr' => $arr,
+                'totalTenants' => $tenants->count(),
+                'activeTenants' => $activeTenants->count(),
+                'suspendedTenants' => $tenants->where('status', 'suspended')->count(),
+                'totalUsers' => $tenants->sum('users_count'),
+                'planDistribution' => $planDistribution,
+            ],
+        ]);
+    }
+
+    public function auditLogs(): Response
+    {
+        $logs = ImpersonationLog::with(['user', 'tenant'])
+            ->orderBy('started_at', 'desc')
+            ->paginate(20);
+
+        return Inertia::render('Admin/AuditLogs/Index', [
+            'logs' => $logs,
+        ]);
     }
 
     public function impersonate(Tenant $tenant, Request $request): RedirectResponse

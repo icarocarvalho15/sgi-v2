@@ -21,13 +21,26 @@ class AdminAndStatusManagementTest extends TestCase
     private Tenant $tenant;
     private User $tenantUser;
     private User $superAdmin;
+    private Plan $plan;
 
     protected function setUp(): void
     {
         parent::setUp();
 
+        $this->plan = Plan::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Gráfica Starter',
+            'slug' => 'grafica-starter',
+            'price' => 199.00,
+            'billing_interval' => 'monthly',
+            'max_users' => 5,
+            'max_monthly_orders' => 150,
+            'is_active' => true,
+        ]);
+
         $this->tenant = Tenant::create([
             'id' => (string) Str::uuid(),
+            'plan_id' => $this->plan->id,
             'name' => 'Gráfica Alpha Express',
             'subdomain' => 'alpha-express',
             'status' => 'active',
@@ -92,6 +105,7 @@ class AdminAndStatusManagementTest extends TestCase
         $storeResponse = $this->post('/admin/tenants', [
             'name' => 'Brindes Premium Brasil',
             'subdomain' => 'brindes-premium',
+            'plan_id' => $this->plan->id,
         ]);
 
         $storeResponse->assertRedirect('/admin/tenants');
@@ -99,6 +113,69 @@ class AdminAndStatusManagementTest extends TestCase
             'name' => 'Brindes Premium Brasil',
             'subdomain' => 'brindes-premium',
         ]);
+    }
+
+    public function test_superadmin_without_impersonation_is_redirected_away_from_tenant_modules(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        // Tentando acessar diretamente um módulo operacional de tenant sem personificação
+        $response = $this->get('/production/boms');
+
+        $response->assertRedirect('/admin/tenants');
+        $response->assertSessionHas('info');
+    }
+
+    public function test_superadmin_can_manage_saas_plans(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $indexResponse = $this->get('/admin/plans');
+        $indexResponse->assertStatus(200);
+
+        $createResponse = $this->post('/admin/plans', [
+            'name' => 'PCP Gráfica Pro',
+            'price' => 499.00,
+            'billing_interval' => 'monthly',
+            'max_users' => 15,
+            'max_monthly_orders' => 800,
+            'description' => 'Controle de engenharia, OPs e estoque',
+            'features' => ['BOM Gráfico', 'Estoque Kardex'],
+            'is_active' => true,
+        ]);
+
+        $createResponse->assertRedirect('/admin/plans');
+        $this->assertDatabaseHas('plans', [
+            'name' => 'PCP Gráfica Pro',
+            'price' => 499.00,
+        ]);
+    }
+
+    public function test_superadmin_can_update_tenant_subscription_and_status(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $updateResponse = $this->put("/admin/tenants/{$this->tenant->id}/subscription", [
+            'plan_id' => $this->plan->id,
+            'status' => 'suspended',
+        ]);
+
+        $updateResponse->assertRedirect('/admin/tenants');
+        $this->assertDatabaseHas('tenants', [
+            'id' => $this->tenant->id,
+            'status' => 'suspended',
+        ]);
+    }
+
+    public function test_superadmin_can_view_metrics_and_audit_logs(): void
+    {
+        $this->actingAs($this->superAdmin);
+
+        $metricsResponse = $this->get('/admin/metrics');
+        $metricsResponse->assertStatus(200);
+
+        $auditResponse = $this->get('/admin/audit-logs');
+        $auditResponse->assertStatus(200);
     }
 
     public function test_superadmin_can_impersonate_and_stop_impersonation_with_audit(): void
@@ -116,6 +193,10 @@ class AdminAndStatusManagementTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'reason' => 'Verificação de suporte técnico #1092',
         ]);
+
+        // Durante a personificação ativa, o SuperAdmin tem acesso ao módulo do cliente
+        $bomResponse = $this->get('/production/boms');
+        $bomResponse->assertStatus(200);
 
         $stopResponse = $this->post('/admin/impersonate/stop');
         $stopResponse->assertRedirect('/admin/tenants');

@@ -25,12 +25,29 @@ Route::get('/', function () {
     return auth()->check() ? redirect('/crm/partners') : redirect()->route('login');
 });
 
-// Painel do Landlord SaaS (Gestão de Tenants e Suporte com Auditoria de Personificação)
+// Painel do Landlord SaaS (Gestão Global de Tenants, Planos, Assinaturas e Auditoria)
 Route::middleware(['web', EnsureSuperAdmin::class])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', function () {
+        return redirect()->route('admin.tenants.index');
+    });
+
+    // Tenants & Assinaturas
     Route::get('tenants', [TenantManagementController::class, 'index'])->name('tenants.index');
     Route::post('tenants', [TenantManagementController::class, 'store'])->name('tenants.store');
+    Route::put('tenants/{tenant}/subscription', [TenantManagementController::class, 'updateSubscription'])->name('tenants.subscription');
+
+    // Suporte com Auditoria de Personificação Técnica
     Route::post('tenants/{tenant}/impersonate', [TenantManagementController::class, 'impersonate'])->name('tenants.impersonate');
     Route::post('impersonate/stop', [TenantManagementController::class, 'stopImpersonation'])->name('impersonate.stop');
+
+    // Planos SaaS do Landlord
+    Route::resource('plans', \App\Modules\CentralAdmin\Controllers\PlanManagementController::class)->names('plans');
+
+    // Métricas SaaS Globais (MRR, Churn, Adoção)
+    Route::get('metrics', [TenantManagementController::class, 'metrics'])->name('metrics.index');
+
+    // Auditoria & Compliance Global
+    Route::get('audit-logs', [TenantManagementController::class, 'auditLogs'])->name('audit-logs.index');
 });
 
 // Rotas do Tenant (Isolamento RLS Multi-Tenant Automático)

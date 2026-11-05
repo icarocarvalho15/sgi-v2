@@ -87,26 +87,6 @@ export default function AppLayout({ title, children }: Props) {
 
                 {/* Navigation */}
                 <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
-                    {/* Atalho Landlord para SuperAdmins */}
-                    {isSuperAdmin && (
-                        <div className="mb-3 pb-3 border-b border-slate-800">
-                            <span className="px-3 text-[10px] font-semibold uppercase tracking-wider text-amber-400/80 block mb-1">
-                                Administração SaaS
-                            </span>
-                            <Link
-                                href="/admin/tenants"
-                                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                                    window.location.pathname.startsWith('/admin/tenants')
-                                        ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
-                                        : 'text-amber-300/80 hover:text-amber-200 hover:bg-amber-500/10 border border-amber-500/20'
-                                }`}
-                            >
-                                <Building2 className="w-4 h-4 text-amber-400" />
-                                Painel Landlord
-                            </Link>
-                        </div>
-                    )}
-
                     <span className="px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 block mb-1">
                         Módulos Operacionais
                     </span>
@@ -155,14 +135,14 @@ export default function AppLayout({ title, children }: Props) {
                     <div className="flex items-center gap-4">
                         {auth?.user ? (
                             <div className="flex items-center gap-3">
-                                {isSuperAdmin && (
-                                    <Link
-                                        href="/admin/tenants"
-                                        className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition-colors"
+                                {isImpersonating && (
+                                    <button
+                                        onClick={handleStopImpersonation}
+                                        className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
                                     >
-                                        <Building2 className="w-3.5 h-3.5" />
-                                        Landlord SaaS
-                                    </Link>
+                                        <LogOut className="w-3.5 h-3.5" />
+                                        Voltar ao Landlord
+                                    </button>
                                 )}
 
                                 <div className="flex items-center gap-2.5 pl-2 border-l border-slate-800">

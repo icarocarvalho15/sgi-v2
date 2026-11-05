@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Core\Tenancy\Models\Plan;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\TenantContext;
 use App\Models\User;
@@ -41,9 +42,56 @@ class FullSystemDemoSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Criar Tenant
+        // 0. Planos SaaS do Landlord
+        $planStarter = Plan::firstOrCreate(
+            ['slug' => 'grafica-starter'],
+            [
+                'id' => (string) Str::uuid(),
+                'name' => 'Gráfica Starter',
+                'description' => 'Ideal para gráficas rápidas e birôs com foco em orçamentos e CRM.',
+                'price' => 199.00,
+                'billing_interval' => 'monthly',
+                'max_users' => 3,
+                'max_monthly_orders' => 100,
+                'features' => ['CRM & Funil Comercial', 'Orçamentos Gráficos Rápidos', 'Gestão de Clientes e Fornecedores'],
+                'is_active' => true,
+            ]
+        );
+
+        $planPro = Plan::firstOrCreate(
+            ['slug' => 'pcp-grafica-pro'],
+            [
+                'id' => (string) Str::uuid(),
+                'name' => 'PCP & Gráfica Pro',
+                'description' => 'Controle completo de engenharia gráfica (BOM), OPs e estoque imutável Kardex.',
+                'price' => 499.00,
+                'billing_interval' => 'monthly',
+                'max_users' => 10,
+                'max_monthly_orders' => 500,
+                'features' => ['CRM & Funil Avançado', 'Orçamentos Gráficos (Chapas CTP / Tintas)', 'Fichas Técnicas (BOM)', 'Chão de Fábrica & OPs', 'Estoque Imutável Kardex (CMP)', 'Contas a Pagar/Receber & DRE'],
+                'is_active' => true,
+            ]
+        );
+
+        $planEnterprise = Plan::firstOrCreate(
+            ['slug' => 'industria-brindes-enterprise'],
+            [
+                'id' => (string) Str::uuid(),
+                'name' => 'Indústria & Brindes Enterprise',
+                'description' => 'Para indústrias de brindes personalizados com automação fiscal e múltiplos depósitos.',
+                'price' => 999.00,
+                'billing_interval' => 'monthly',
+                'max_users' => 50,
+                'max_monthly_orders' => 5000,
+                'features' => ['Tudo do Plano Pro', 'Múltiplos Depósitos/Almoxarifados', 'Emissão Fiscal NFe/NFSe Automatizada', 'Gateways de Pagamento & Webhooks', 'Auditoria Completa & SLA Prioritário'],
+                'is_active' => true,
+            ]
+        );
+
+        // 1. Criar Tenant vinculado ao plano Pro
         $tenant = Tenant::create([
             'id' => (string) Str::uuid(),
+            'plan_id' => $planPro->id,
             'name' => 'Gráfica & Brindes Express Ltda',
             'subdomain' => 'express-' . Str::random(5),
             'status' => 'active',

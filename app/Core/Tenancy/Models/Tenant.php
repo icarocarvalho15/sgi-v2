@@ -7,6 +7,7 @@ namespace App\Core\Tenancy\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -51,6 +52,13 @@ class Tenant extends Model
     public function users(): HasMany
     {
         return $this->hasMany(\App\Models\User::class, 'tenant_id');
+    }
+
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(\App\Models\User::class, 'tenant_user')
+            ->withPivot(['role', 'is_active'])
+            ->withTimestamps();
     }
 
     public function statuses(): HasMany

@@ -16,6 +16,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Core\Tenancy\Middleware\SetTenantContext::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
         ]);
+        $middleware->alias([
+            'tenant.role' => \App\Http\Middleware\EnsureTenantRole::class,
+        ]);
         $middleware->validateCsrfTokens(except: [
             'api/webhooks/*',
         ]);

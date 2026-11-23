@@ -100,13 +100,48 @@ class FullSystemDemoSeeder extends Seeder
         TenantContext::set($tenant);
         DefaultStatusesSeederService::seedForTenant($tenant->id);
 
-        // 2. Criar Usuário Operador da Gráfica e SuperAdmin Landlord
+        // 2. Criar Usuários da Empresa (Dono, Vendedor, Produção, Financeiro) e SuperAdmin Landlord
         $user = User::forceCreate([
             'id' => (string) Str::uuid(),
             'name' => 'Diretor Operacional Express',
             'email' => 'operador@express.com',
             'password' => bcrypt('Operador123!'),
             'tenant_id' => $tenant->id,
+            'role' => 'admin',
+            'is_active' => true,
+            'is_super_admin' => false,
+        ]);
+
+        $salesUser = User::forceCreate([
+            'id' => (string) Str::uuid(),
+            'name' => 'Lucas Santos (Vendas)',
+            'email' => 'vendas@express.com',
+            'password' => bcrypt('Vendas123!'),
+            'tenant_id' => $tenant->id,
+            'role' => 'sales',
+            'is_active' => true,
+            'is_super_admin' => false,
+        ]);
+
+        $prodUser = User::forceCreate([
+            'id' => (string) Str::uuid(),
+            'name' => 'Marcos Impressor (PCP)',
+            'email' => 'producao@express.com',
+            'password' => bcrypt('Producao123!'),
+            'tenant_id' => $tenant->id,
+            'role' => 'production',
+            'is_active' => true,
+            'is_super_admin' => false,
+        ]);
+
+        $finUser = User::forceCreate([
+            'id' => (string) Str::uuid(),
+            'name' => 'Beatriz Costa (Financeiro)',
+            'email' => 'financeiro@express.com',
+            'password' => bcrypt('Financeiro123!'),
+            'tenant_id' => $tenant->id,
+            'role' => 'finance',
+            'is_active' => true,
             'is_super_admin' => false,
         ]);
 
@@ -116,6 +151,8 @@ class FullSystemDemoSeeder extends Seeder
             'email' => 'admin@sgi-erp.com',
             'password' => bcrypt('Admin1234!'),
             'tenant_id' => null,
+            'role' => 'admin',
+            'is_active' => true,
             'is_super_admin' => true,
         ]);
 

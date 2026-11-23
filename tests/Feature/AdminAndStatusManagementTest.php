@@ -51,7 +51,7 @@ class AdminAndStatusManagementTest extends TestCase
             'name' => 'Operador Alpha',
             'email' => 'operador@alpha.com',
             'password' => Hash::make('password123'),
-            'role' => 'operator',
+            'role' => 'admin',
             'is_super_admin' => false,
         ]);
 

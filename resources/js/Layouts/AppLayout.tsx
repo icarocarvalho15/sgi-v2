@@ -31,21 +31,26 @@ interface Props {
 export default function AppLayout({ title, children }: Props) {
     const { flash, tenant, auth, impersonation } = usePage<any>().props;
 
-    const navItems = [
-        { label: 'Clientes & Fornecedores', href: '/crm/partners', icon: Users },
-        { label: 'Orçamentos Técnicos', href: '/quotes', icon: FileText },
-        { label: 'Fichas Técnicas (BOM)', href: '/production/boms', icon: Layers },
-        { label: 'Chão de Fábrica (OPs)', href: '/production/orders', icon: Sliders },
-        { label: 'Estoque & Saldos', href: '/inventory/balances', icon: Boxes },
-        { label: 'Razão Kardex', href: '/inventory/kardex', icon: FileSpreadsheet },
-        { label: 'Financeiro (Títulos)', href: '/finance/entries', icon: DollarSign },
-        { label: 'Fluxo & DRE', href: '/finance/reports', icon: TrendingUp },
-        { label: 'Config. Fiscais', href: '/settings/fiscal', icon: Settings },
-        { label: 'Status Customizados', href: '/settings/statuses', icon: Palette },
-    ];
-
+    const userRole = auth?.user?.role || 'admin';
     const isSuperAdmin = auth?.user?.is_super_admin;
     const isImpersonating = impersonation?.is_impersonating;
+
+    const allNavItems = [
+        { label: 'Clientes & Fornecedores', href: '/crm/partners', icon: Users, roles: ['admin', 'sales', 'finance'] },
+        { label: 'Orçamentos Técnicos', href: '/quotes', icon: FileText, roles: ['admin', 'sales'] },
+        { label: 'Fichas Técnicas (BOM)', href: '/production/boms', icon: Layers, roles: ['admin', 'production'] },
+        { label: 'Chão de Fábrica (OPs)', href: '/production/orders', icon: Sliders, roles: ['admin', 'production'] },
+        { label: 'Estoque & Saldos', href: '/inventory/balances', icon: Boxes, roles: ['admin', 'sales', 'production'] },
+        { label: 'Razão Kardex', href: '/inventory/kardex', icon: FileSpreadsheet, roles: ['admin', 'production'] },
+        { label: 'Financeiro (Títulos)', href: '/finance/entries', icon: DollarSign, roles: ['admin', 'finance'] },
+        { label: 'Fluxo & DRE', href: '/finance/reports', icon: TrendingUp, roles: ['admin', 'finance'] },
+        { label: 'Configurações da Empresa', href: '/settings', icon: Settings, roles: ['admin'] },
+    ];
+
+    const navItems = allNavItems.filter((item) => {
+        if (isSuperAdmin || userRole === 'admin' || userRole === 'owner') return true;
+        return item.roles.includes(userRole);
+    });
 
     const handleLogout = () => {
         router.post('/logout');
@@ -149,9 +154,23 @@ export default function AppLayout({ title, children }: Props) {
                                         {auth.user.name?.slice(0, 2) || 'US'}
                                     </div>
                                     <div className="hidden sm:block text-left">
-                                        <span className="text-xs font-semibold text-white block leading-tight">
-                                            {auth.user.name}
-                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-semibold text-white block leading-tight">
+                                                {auth.user.name}
+                                            </span>
+                                            {auth.user.role_name && (
+                                                <span 
+                                                    className="text-[9px] px-1.5 py-0.5 rounded font-medium border"
+                                                    style={{ 
+                                                        color: auth.user.role_color || '#6366F1',
+                                                        borderColor: `${auth.user.role_color || '#6366F1'}40`,
+                                                        backgroundColor: `${auth.user.role_color || '#6366F1'}15`
+                                                    }}
+                                                >
+                                                    {auth.user.role_name}
+                                                </span>
+                                            )}
+                                        </div>
                                         <span className="text-[10px] text-slate-400 block font-mono">
                                             {isSuperAdmin ? 'SuperAdmin SaaS' : auth.user.email}
                                         </span>

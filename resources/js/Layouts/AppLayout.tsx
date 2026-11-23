@@ -33,7 +33,6 @@ export default function AppLayout({ title, children }: Props) {
 
     const navItems = [
         { label: 'Clientes & Fornecedores', href: '/crm/partners', icon: Users },
-        { label: 'Funil de Vendas (Kanban)', href: '/crm/kanban', icon: Kanban },
         { label: 'Orçamentos Técnicos', href: '/quotes', icon: FileText },
         { label: 'Fichas Técnicas (BOM)', href: '/production/boms', icon: Layers },
         { label: 'Chão de Fábrica (OPs)', href: '/production/orders', icon: Sliders },

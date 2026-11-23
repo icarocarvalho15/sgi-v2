@@ -6,6 +6,7 @@ namespace Tests\Feature;
 
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\TenantContext;
+use App\Models\User;
 use App\Modules\CoreAdmin\Models\TenantStatus;
 use App\Modules\CoreAdmin\Services\DefaultStatusesSeederService;
 use App\Modules\CRM\Models\Partner;
@@ -184,5 +185,83 @@ class QuotesAndConversionTest extends TestCase
         // Tentar buscar diretamente por ID
         $found = Quote::find($quoteA->id);
         $this->assertNull($found);
+    }
+
+    private function createTenantUser(): User
+    {
+        return User::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Operador Comercial',
+            'email' => 'operador-' . Str::random(6) . '@grafica.com',
+            'password' => 'secret123',
+            'is_super_admin' => false,
+        ]);
+    }
+
+    public function test_quote_index_provides_kanban_and_statuses(): void
+    {
+        $user = $this->createTenantUser();
+
+        Quote::create([
+            'quote_number' => 'ORC-TEST-KANBAN',
+            'customer_id' => $this->customer->id,
+            'status_id' => $this->quoteDraftStatus->id,
+            'title' => 'Flyer Promocional 5000 un',
+            'subtotal' => '850.0000',
+            'total_amount' => '850.0000',
+            'estimated_cost' => '400.0000',
+            'production_lead_time_days' => 3,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->get(route('quotes.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Quotes/Index')
+            ->has('quotes')
+            ->has('kanbanQuotes', 1)
+            ->has('statuses')
+        );
+    }
+
+    public function test_quote_status_can_be_updated_in_funnel(): void
+    {
+        $user = $this->createTenantUser();
+
+        $quote = Quote::create([
+            'quote_number' => 'ORC-TEST-STATUS',
+            'customer_id' => $this->customer->id,
+            'status_id' => $this->quoteDraftStatus->id,
+            'title' => 'Sacolas Personalizadas Kraft',
+            'subtotal' => '2400.0000',
+            'total_amount' => '2400.0000',
+            'estimated_cost' => '1200.0000',
+            'production_lead_time_days' => 7,
+        ]);
+
+        $approvedStatus = TenantStatus::forModule('quotes')
+            ->where('slug', 'orcamento-aprovado')
+            ->firstOrFail();
+
+        $response = $this->actingAs($user)
+            ->post(route('quotes.status', $quote), [
+                'status_id' => $approvedStatus->id,
+            ]);
+
+        $response->assertRedirect();
+        TenantContext::set($this->tenant);
+        $quote->refresh();
+        $this->assertEquals($approvedStatus->id, $quote->status_id);
+    }
+
+    public function test_legacy_crm_kanban_route_redirects_to_quotes_kanban(): void
+    {
+        $user = $this->createTenantUser();
+
+        $response = $this->actingAs($user)
+            ->get(route('crm.kanban.index'));
+
+        $response->assertRedirect(route('quotes.index', ['view' => 'kanban']));
     }
 }

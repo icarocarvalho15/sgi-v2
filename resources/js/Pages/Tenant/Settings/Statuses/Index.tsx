@@ -37,7 +37,7 @@ interface Props {
 }
 
 export default function StatusesIndex({ statusesByModule }: Props) {
-    const [activeTab, setActiveTab] = useState<'crm_deals' | 'quotes' | 'production_orders'>('crm_deals');
+    const [activeTab, setActiveTab] = useState<'quotes' | 'production_orders' | 'crm_deals'>('quotes');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [editingStatus, setEditingStatus] = useState<TenantStatus | null>(null);
 
@@ -59,7 +59,7 @@ export default function StatusesIndex({ statusesByModule }: Props) {
         is_final: false,
     });
 
-    const handleTabChange = (tab: 'crm_deals' | 'quotes' | 'production_orders') => {
+    const handleTabChange = (tab: 'quotes' | 'production_orders' | 'crm_deals') => {
         setActiveTab(tab);
         createForm.setData('module', tab);
     };
@@ -112,20 +112,20 @@ export default function StatusesIndex({ statusesByModule }: Props) {
     const currentStatuses = statusesByModule[activeTab] || [];
 
     const tabConfig = {
-        crm_deals: {
-            title: 'Funil de Vendas (CRM)',
-            description: 'Etapas de negociação do pipeline comercial de clientes e agências.',
-            icon: Kanban,
-        },
         quotes: {
-            title: 'Orçamentos Gráficos',
-            description: 'Fases de cálculo técnico, envio e aprovação de propostas de brindes/impressos.',
+            title: 'Orçamentos & Funil de Vendas',
+            description: 'Fases do funil de vendas, cálculo técnico, envio e aprovação de propostas de brindes/impressos.',
             icon: FileText,
         },
         production_orders: {
             title: 'Chão de Fábrica & OPs (PCP)',
             description: 'Etapas de impressão, acabamento, montagem e despacho das ordens de produção.',
             icon: Layers,
+        },
+        crm_deals: {
+            title: 'Oportunidades Comerciais (CRM)',
+            description: 'Etapas de negociação do pipeline comercial de clientes e agências.',
+            icon: Kanban,
         },
     };
 

@@ -55,13 +55,14 @@ Route::middleware([SetTenantContext::class])->group(function () {
     // Módulo CRM: Clientes e Fornecedores
     Route::resource('crm/partners', PartnerController::class)->names('crm.partners');
 
-    // Módulo CRM: Funil de Vendas (Kanban)
-    Route::get('crm/kanban', [CrmKanbanController::class, 'index'])->name('crm.kanban.index');
+    // Módulo CRM: Redirecionamento amigável para o Funil de Vendas de Orçamentos
+    Route::get('crm/kanban', fn () => redirect()->route('quotes.index', ['view' => 'kanban']))->name('crm.kanban.index');
     Route::post('crm/deals/{deal}/stage', [CrmKanbanController::class, 'updateStage'])->name('crm.deals.stage');
 
-    // Módulo Orçamentos Técnicos (Gráficas e Brindes)
+    // Módulo Orçamentos Técnicos & Funil de Vendas (Gráficas e Brindes)
     Route::post('quotes/calculate', [QuoteController::class, 'calculate'])->name('quotes.calculate');
     Route::post('quotes/{quote}/convert', [QuoteController::class, 'convert'])->name('quotes.convert');
+    Route::post('quotes/{quote}/status', [QuoteController::class, 'updateStatus'])->name('quotes.status');
     Route::resource('quotes', QuoteController::class);
 
     // Módulo Engenharia & Chão de Fábrica (PCP Gráfico)

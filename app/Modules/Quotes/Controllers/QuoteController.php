@@ -24,16 +24,30 @@ class QuoteController extends Controller
 {
     public function index(Request $request): Response|JsonResponse
     {
-        $quotes = Quote::with(['customer', 'status'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(15);
+        $view = $request->query('view', 'table');
+
+        $statuses = TenantStatus::forModule('quotes')
+            ->ordered()
+            ->get(['id', 'name', 'slug', 'color', 'position', 'is_default', 'is_final']);
+
+        $quotesQuery = Quote::with(['customer', 'status', 'items'])
+            ->orderBy('created_at', 'desc');
 
         if ($request->wantsJson()) {
-            return response()->json($quotes);
+            return response()->json([
+                'quotes' => $quotesQuery->get(),
+                'statuses' => $statuses,
+            ]);
         }
 
+        $paginatedQuotes = (clone $quotesQuery)->paginate(15)->withQueryString();
+        $allQuotes = $quotesQuery->get();
+
         return Inertia::render('Quotes/Index', [
-            'quotes' => $quotes,
+            'quotes' => $paginatedQuotes,
+            'kanbanQuotes' => $allQuotes,
+            'statuses' => $statuses,
+            'initialView' => $view,
         ]);
     }
 
@@ -196,5 +210,32 @@ class QuoteController extends Controller
 
         return redirect()->route('quotes.show', $quote->id)
             ->with('success', 'Orçamento convertido com sucesso em Pedido de Venda e Ordens de Produção.');
+    }
+
+    /**
+     * Updates the operational status of a quote (used by Funil / Kanban).
+     */
+    public function updateStatus(Request $request, Quote $quote): RedirectResponse|JsonResponse
+    {
+        $validated = $request->validate([
+            'status_id' => ['required', 'uuid', new TenantExists('tenant_statuses', 'id')],
+        ]);
+
+        $status = TenantStatus::where('id', $validated['status_id'])
+            ->where('module', 'quotes')
+            ->firstOrFail();
+
+        $quote->update([
+            'status_id' => $status->id,
+        ]);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => "Status do orçamento {$quote->quote_number} atualizado para {$status->name}.",
+                'quote' => $quote->load(['customer', 'status', 'items']),
+            ]);
+        }
+
+        return back()->with('success', "Status do orçamento {$quote->quote_number} atualizado para {$status->name}.");
     }
 }

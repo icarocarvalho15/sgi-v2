@@ -24,7 +24,7 @@ import {
 interface BankAccount {
     id: string;
     name: string;
-    bank_name?: string;
+    bank_code?: string;
     current_balance: string;
 }
 
@@ -41,13 +41,19 @@ interface StatusCount {
     total?: string;
 }
 
+interface StatusObj {
+    id?: string;
+    name?: string;
+    color?: string;
+}
+
 interface RecentQuote {
     id: string;
     quote_number: string;
-    customer?: { id: string; name: string };
-    partner?: { id: string; name: string };
+    customer?: { id: string; name: string } | null;
+    partner?: { id: string; name: string } | null;
     title: string;
-    status: string;
+    status?: StatusObj | string | null;
     total_amount: string;
     created_at: string;
 }
@@ -55,11 +61,11 @@ interface RecentQuote {
 interface RecentOrder {
     id: string;
     order_number: string;
-    bom?: { id: string; name: string };
+    bom?: { id: string; name: string } | null;
     product_name?: string;
     target_quantity?: number;
     produced_quantity?: number;
-    status: string;
+    status?: StatusObj | string | null;
     due_date?: string | null;
     created_at: string;
 }
@@ -68,68 +74,93 @@ interface LowStockItem {
     id: string;
     quantity_available?: string;
     quantity_on_hand?: string;
-    item: {
+    item?: {
         id: string;
         code: string;
         name: string;
         unit_of_measure: string;
-    };
+    } | null;
 }
 
 interface Props {
-    tenant: {
+    tenant?: {
         id: string;
         name: string;
-    };
-    kpis: {
-        financial: {
-            revenue_month: string;
-            received_month: string;
-            payable_month: string;
-            paid_month: string;
-            pending_receivable: string;
-            pending_payable: string;
-            total_bank_balance: string;
-            bank_accounts: BankAccount[];
-            history: MonthHistory[];
+    } | null;
+    kpis?: {
+        financial?: {
+            revenue_month?: string;
+            received_month?: string;
+            payable_month?: string;
+            paid_month?: string;
+            pending_receivable?: string;
+            pending_payable?: string;
+            total_bank_balance?: string;
+            bank_accounts?: BankAccount[];
+            history?: MonthHistory[];
         };
-        sales: {
-            quotes_count: number;
-            quotes_value: string;
-            approved_count: number;
-            approved_value: string;
-            conversion_rate: number;
-            status_distribution: StatusCount[];
-            recent_quotes: RecentQuote[];
+        sales?: {
+            quotes_count?: number;
+            quotes_value?: string;
+            approved_count?: number;
+            approved_value?: string;
+            conversion_rate?: number;
+            status_distribution?: StatusCount[];
+            recent_quotes?: RecentQuote[];
         };
-        production: {
-            active_orders: number;
-            completed_month: number;
-            status_distribution: StatusCount[];
-            recent_orders: RecentOrder[];
+        production?: {
+            active_orders?: number;
+            completed_month?: number;
+            status_distribution?: StatusCount[];
+            recent_orders?: RecentOrder[];
         };
-        inventory: {
-            total_items: number;
-            total_stock_value: string;
-            low_stock_items: LowStockItem[];
+        inventory?: {
+            total_items?: number;
+            total_stock_value?: string;
+            low_stock_items?: LowStockItem[];
         };
     };
 }
 
 export default function TenantDashboard({ tenant, kpis }: Props) {
-    const formatCurrency = (val: string | number) => {
+    const formatCurrency = (val?: string | number | null) => {
+        if (val === undefined || val === null) return 'R$ 0,00';
         const num = typeof val === 'string' ? parseFloat(val) : val;
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num || 0);
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(isNaN(num) ? 0 : num);
     };
 
-    const maxHistoryValue = Math.max(
-        ...kpis.financial.history.map((h) => Math.max(h.inflow, h.outflow)),
-        1000
-    );
+    const tenantName = tenant?.name || 'Gráfica & Brindes';
+
+    // Normalização Segura dos Dados
+    const financial = kpis?.financial || {};
+    const sales = kpis?.sales || {};
+    const production = kpis?.production || {};
+    const inventory = kpis?.inventory || {};
+
+    const history = financial.history || [];
+    const maxHistoryValue = history.length > 0
+        ? Math.max(...history.map((h) => Math.max(h.inflow || 0, h.outflow || 0)), 1000)
+        : 1000;
+
+    const bankAccounts = financial.bank_accounts || [];
+    const lowStockItems = inventory.low_stock_items || [];
+    const recentQuotes = sales.recent_quotes || [];
+    const recentOrders = production.recent_orders || [];
+
+    const getStatusName = (status: any): string => {
+        if (!status) return 'Em Aberto';
+        if (typeof status === 'object' && status !== null) return status.name || 'Em Aberto';
+        return String(status);
+    };
+
+    const getStatusColor = (status: any): string => {
+        if (typeof status === 'object' && status !== null && status.color) return status.color;
+        return '#818CF8';
+    };
 
     return (
         <AppLayout title="Painel Operacional & Executivo">
-            <Head title={`Dashboard - ${tenant.name}`} />
+            <Head title={`Dashboard - ${tenantName}`} />
 
             <div className="space-y-6">
                 {/* Header com Boas-vindas e Ações Rápidas */}
@@ -139,7 +170,7 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                             Visão Geral da Gráfica & Brindes
                         </span>
                         <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                            {tenant.name}
+                            {tenantName}
                         </h1>
                         <p className="text-sm text-slate-400 mt-1">
                             Acompanhamento em tempo real de vendas, faturamento, produção (PCP) e estoques.
@@ -190,14 +221,14 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                         </div>
                         <div className="mt-3">
                             <div className="text-2xl font-bold text-white tracking-tight">
-                                {formatCurrency(kpis.financial.revenue_month)}
+                                {formatCurrency(financial.revenue_month)}
                             </div>
                             <div className="flex items-center justify-between mt-2 text-xs">
                                 <span className="text-emerald-400 font-medium">
-                                    {formatCurrency(kpis.financial.received_month)} recebido
+                                    {formatCurrency(financial.received_month)} recebido
                                 </span>
                                 <span className="text-slate-500">
-                                    {formatCurrency(kpis.financial.pending_receivable)} a receber
+                                    {formatCurrency(financial.pending_receivable)} a receber
                                 </span>
                             </div>
                         </div>
@@ -213,14 +244,14 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                         </div>
                         <div className="mt-3">
                             <div className="text-2xl font-bold text-white tracking-tight">
-                                {formatCurrency(kpis.financial.payable_month)}
+                                {formatCurrency(financial.payable_month)}
                             </div>
                             <div className="flex items-center justify-between mt-2 text-xs">
                                 <span className="text-rose-400 font-medium">
-                                    {formatCurrency(kpis.financial.paid_month)} pago
+                                    {formatCurrency(financial.paid_month)} pago
                                 </span>
                                 <span className="text-slate-500">
-                                    {formatCurrency(kpis.financial.pending_payable)} pendente
+                                    {formatCurrency(financial.pending_payable)} pendente
                                 </span>
                             </div>
                         </div>
@@ -237,18 +268,18 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                         <div className="mt-3">
                             <div className="flex items-baseline justify-between">
                                 <div className="text-2xl font-bold text-white tracking-tight">
-                                    {kpis.sales.quotes_count} orçamentos
+                                    {sales.quotes_count || 0} orçamentos
                                 </div>
                                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/20">
-                                    {kpis.sales.conversion_rate}% conv.
+                                    {sales.conversion_rate || 0}% conv.
                                 </span>
                             </div>
                             <div className="flex items-center justify-between mt-2 text-xs">
                                 <span className="text-emerald-400 font-medium">
-                                    {formatCurrency(kpis.sales.approved_value)} aprovados
+                                    {formatCurrency(sales.approved_value)} aprovados
                                 </span>
                                 <span className="text-slate-500">
-                                    {formatCurrency(kpis.sales.quotes_value)} total cotado
+                                    {formatCurrency(sales.quotes_value)} total cotado
                                 </span>
                             </div>
                         </div>
@@ -264,14 +295,14 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                         </div>
                         <div className="mt-3">
                             <div className="text-2xl font-bold text-white tracking-tight">
-                                {formatCurrency(kpis.financial.total_bank_balance)}
+                                {formatCurrency(financial.total_bank_balance)}
                             </div>
                             <div className="flex items-center justify-between mt-2 text-xs">
                                 <span className="text-amber-400 font-medium">
-                                    {kpis.production.active_orders} OPs em execução
+                                    {production.active_orders || 0} OPs em execução
                                 </span>
                                 <span className="text-emerald-400">
-                                    {kpis.production.completed_month} entregues no mês
+                                    {production.completed_month || 0} entregues no mês
                                 </span>
                             </div>
                         </div>
@@ -306,44 +337,48 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
 
                         {/* Barras do Gráfico */}
                         <div className="space-y-4 pt-2">
-                            {kpis.financial.history.map((m, idx) => {
-                                const inflowPct = Math.min(100, Math.round((m.inflow / maxHistoryValue) * 100));
-                                const outflowPct = Math.min(100, Math.round((m.outflow / maxHistoryValue) * 100));
+                            {history.length === 0 ? (
+                                <p className="text-xs text-slate-500 py-6 text-center">Nenhuma movimentação financeira registrada nos últimos meses.</p>
+                            ) : (
+                                history.map((m, idx) => {
+                                    const inflowPct = Math.min(100, Math.round(((m.inflow || 0) / maxHistoryValue) * 100));
+                                    const outflowPct = Math.min(100, Math.round(((m.outflow || 0) / maxHistoryValue) * 100));
 
-                                return (
-                                    <div key={idx} className="space-y-1.5">
-                                        <div className="flex items-center justify-between text-xs">
-                                            <span className="font-medium text-slate-300 w-16">{m.month}</span>
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-emerald-400 font-mono">
-                                                    +{formatCurrency(m.inflow)}
-                                                </span>
-                                                <span className="text-slate-600">/</span>
-                                                <span className="text-rose-400 font-mono">
-                                                    -{formatCurrency(m.outflow)}
-                                                </span>
-                                                <span className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded ${
-                                                    m.net >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-                                                }`}>
-                                                    Líq: {formatCurrency(m.net)}
-                                                </span>
+                                    return (
+                                        <div key={idx} className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="font-medium text-slate-300 w-16">{m.month}</span>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-emerald-400 font-mono">
+                                                        +{formatCurrency(m.inflow)}
+                                                    </span>
+                                                    <span className="text-slate-600">/</span>
+                                                    <span className="text-rose-400 font-mono">
+                                                        -{formatCurrency(m.outflow)}
+                                                    </span>
+                                                    <span className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded ${
+                                                        (m.net || 0) >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                                                    }`}>
+                                                        Líq: {formatCurrency(m.net)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="w-full bg-slate-950 rounded-full h-3 flex overflow-hidden border border-slate-800">
+                                                <div
+                                                    style={{ width: `${inflowPct}%` }}
+                                                    className="bg-emerald-500 h-full rounded-l-full transition-all duration-500"
+                                                    title={`Receitas: ${formatCurrency(m.inflow)}`}
+                                                />
+                                                <div
+                                                    style={{ width: `${outflowPct}%` }}
+                                                    className="bg-rose-500 h-full rounded-r-full transition-all duration-500 opacity-90"
+                                                    title={`Despesas: ${formatCurrency(m.outflow)}`}
+                                                />
                                             </div>
                                         </div>
-                                        <div className="w-full bg-slate-950 rounded-full h-3 flex overflow-hidden border border-slate-800">
-                                            <div
-                                                style={{ width: `${inflowPct}%` }}
-                                                className="bg-emerald-500 h-full rounded-l-full transition-all duration-500"
-                                                title={`Receitas: ${formatCurrency(m.inflow)}`}
-                                            />
-                                            <div
-                                                style={{ width: `${outflowPct}%` }}
-                                                className="bg-rose-500 h-full rounded-r-full transition-all duration-500 opacity-90"
-                                                title={`Despesas: ${formatCurrency(m.outflow)}`}
-                                            />
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })
+                            )}
                         </div>
                     </div>
 
@@ -374,7 +409,7 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                                         Valor Total Almoxarifado
                                     </span>
                                     <span className="text-xl font-bold text-emerald-400 font-mono mt-0.5 block">
-                                        {formatCurrency(kpis.inventory.total_stock_value)}
+                                        {formatCurrency(inventory.total_stock_value)}
                                     </span>
                                 </div>
                                 <div className="text-right">
@@ -382,7 +417,7 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                                         Insumos Ativos
                                     </span>
                                     <span className="text-lg font-bold text-white mt-0.5 block">
-                                        {kpis.inventory.total_items} itens
+                                        {inventory.total_items || 0} itens
                                     </span>
                                 </div>
                             </div>
@@ -393,28 +428,28 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                                     Alertas de Reposição / Estoque Baixo
                                 </span>
 
-                                {kpis.inventory.low_stock_items.length === 0 ? (
+                                {lowStockItems.length === 0 ? (
                                     <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl text-xs text-emerald-400 flex items-center gap-2">
                                         <CheckCircle2 className="w-4 h-4 shrink-0" />
                                         Todos os insumos possuem saldo regular no almoxarifado.
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {kpis.inventory.low_stock_items.map((b) => (
+                                        {lowStockItems.map((b) => (
                                             <div
                                                 key={b.id}
                                                 className="p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs"
                                             >
                                                 <div className="truncate pr-2">
                                                     <span className="font-semibold text-slate-200 block truncate">
-                                                        {b.item.name}
+                                                        {b.item?.name || 'Insumo Gráfico'}
                                                     </span>
                                                     <span className="text-[10px] text-slate-500 font-mono">
-                                                        Cód: {b.item.code}
+                                                        Cód: {b.item?.code || '-'}
                                                     </span>
                                                 </div>
                                                 <span className="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold shrink-0">
-                                                    {b.quantity_available || b.quantity_on_hand} {b.item.unit_of_measure}
+                                                    {b.quantity_available || b.quantity_on_hand || 0} {b.item?.unit_of_measure || 'un'}
                                                 </span>
                                             </div>
                                         ))}
@@ -457,10 +492,10 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                         </div>
 
                         <div className="divide-y divide-slate-800/60 mt-3">
-                            {kpis.sales.recent_quotes.length === 0 ? (
+                            {recentQuotes.length === 0 ? (
                                 <p className="text-xs text-slate-500 py-6 text-center">Nenhum orçamento emitido ainda.</p>
                             ) : (
-                                kpis.sales.recent_quotes.map((q) => (
+                                recentQuotes.map((q) => (
                                     <div key={q.id} className="py-3 flex items-center justify-between gap-3 text-xs">
                                         <div className="truncate">
                                             <div className="flex items-center gap-2">
@@ -479,8 +514,11 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                                             <span className="font-bold text-emerald-400 font-mono block">
                                                 {formatCurrency(q.total_amount)}
                                             </span>
-                                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
-                                                {q.status}
+                                            <span 
+                                                className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-medium bg-slate-800 border border-slate-700"
+                                                style={{ color: getStatusColor(q.status) }}
+                                            >
+                                                {getStatusName(q.status)}
                                             </span>
                                         </div>
                                     </div>
@@ -510,10 +548,10 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                         </div>
 
                         <div className="divide-y divide-slate-800/60 mt-3">
-                            {kpis.production.recent_orders.length === 0 ? (
+                            {recentOrders.length === 0 ? (
                                 <p className="text-xs text-slate-500 py-6 text-center">Nenhuma ordem de produção em execução.</p>
                             ) : (
-                                kpis.production.recent_orders.map((o) => (
+                                recentOrders.map((o) => (
                                     <div key={o.id} className="py-3 flex items-center justify-between gap-3 text-xs">
                                         <div className="truncate">
                                             <div className="flex items-center gap-2">
@@ -521,7 +559,7 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                                                     {o.order_number}
                                                 </span>
                                                 <span className="font-medium text-slate-300 truncate">
-                                                    {o.bom?.name || 'Item Gráfico Personalizado'}
+                                                    {o.bom?.name || o.product_name || 'Item Gráfico Personalizado'}
                                                 </span>
                                             </div>
                                             <span className="text-[11px] text-slate-500 block mt-0.5">
@@ -530,8 +568,11 @@ export default function TenantDashboard({ tenant, kpis }: Props) {
                                             </span>
                                         </div>
                                         <div className="text-right shrink-0">
-                                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold border bg-slate-800 text-slate-300 border-slate-700">
-                                                {o.status}
+                                            <span 
+                                                className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold border bg-slate-800 border-slate-700"
+                                                style={{ color: getStatusColor(o.status) }}
+                                            >
+                                                {getStatusName(o.status)}
                                             </span>
                                         </div>
                                     </div>

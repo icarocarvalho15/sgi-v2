@@ -116,8 +116,12 @@ class DashboardController extends Controller
 
         // Distribuição de status dos orçamentos
         $quotesStatusDistribution = Quote::where('quotes.tenant_id', $tenant->id)
-            ->join('tenant_statuses', 'tenant_statuses.id', '=', 'quotes.status_id')
-            ->select('tenant_statuses.name as status', DB::raw('count(quotes.id) as count'), DB::raw('sum(quotes.total_amount) as total'))
+            ->leftJoin('tenant_statuses', 'tenant_statuses.id', '=', 'quotes.status_id')
+            ->select(
+                DB::raw("COALESCE(tenant_statuses.name, 'Geral') as status"),
+                DB::raw('count(quotes.id) as count'),
+                DB::raw('COALESCE(sum(quotes.total_amount), 0) as total')
+            )
             ->groupBy('tenant_statuses.name')
             ->get();
 
@@ -144,8 +148,11 @@ class DashboardController extends Controller
             ->count();
 
         $ordersStatusDistribution = ProductionOrder::where('production_orders.tenant_id', $tenant->id)
-            ->join('tenant_statuses', 'tenant_statuses.id', '=', 'production_orders.status_id')
-            ->select('tenant_statuses.name as status', DB::raw('count(production_orders.id) as count'))
+            ->leftJoin('tenant_statuses', 'tenant_statuses.id', '=', 'production_orders.status_id')
+            ->select(
+                DB::raw("COALESCE(tenant_statuses.name, 'Geral') as status"),
+                DB::raw('count(production_orders.id) as count')
+            )
             ->groupBy('tenant_statuses.name')
             ->get();
 

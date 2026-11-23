@@ -54,12 +54,12 @@ Route::middleware(['web', EnsureSuperAdmin::class])->prefix('admin')->name('admi
 // Rotas do Tenant (Isolamento RLS Multi-Tenant Automático e Controle RBAC por Perfil)
 Route::middleware([SetTenantContext::class])->group(function () {
     // Módulo CRM: Clientes e Fornecedores (Admin, Comercial/Vendas e Financeiro)
-    Route::middleware('tenant.role:admin,sales,finance')->group(function () {
+    Route::middleware('tenant.role:admin,sales,finance,crm')->group(function () {
         Route::resource('crm/partners', PartnerController::class)->names('crm.partners');
     });
 
-    // Módulo Orçamentos Técnicos & Funil de Vendas (Admin e Comercial/Vendas)
-    Route::middleware('tenant.role:admin,sales')->group(function () {
+    // Módulo Orçamentos Técnicos & Funil de Vendas (Admin, Comercial/Vendas e Orçamentistas)
+    Route::middleware('tenant.role:admin,sales,quotes')->group(function () {
         Route::get('crm/kanban', fn () => redirect()->route('quotes.index', ['view' => 'kanban']))->name('crm.kanban.index');
         Route::post('crm/deals/{deal}/stage', [CrmKanbanController::class, 'updateStage'])->name('crm.deals.stage');
         Route::post('quotes/calculate', [QuoteController::class, 'calculate'])->name('quotes.calculate');
@@ -68,20 +68,25 @@ Route::middleware([SetTenantContext::class])->group(function () {
         Route::resource('quotes', QuoteController::class);
     });
 
-    // Módulo Engenharia & Chão de Fábrica (PCP Gráfico: Admin e Chão de Fábrica)
-    Route::middleware('tenant.role:admin,production')->group(function () {
+    // Módulo Engenharia Gráfica: Fichas Técnicas (BOM)
+    Route::middleware('tenant.role:admin,production,boms')->group(function () {
         Route::resource('production/boms', \App\Modules\Production\Controllers\BomController::class)->names('production.boms');
+    });
+
+    // Módulo PCP Gráfico: Chão de Fábrica e Ordens de Produção (Admin e Chão de Fábrica)
+    Route::middleware('tenant.role:admin,production')->group(function () {
         Route::resource('production/orders', \App\Modules\Production\Controllers\ProductionOrderController::class)->names('production.orders');
         Route::post('production/orders/{order}/status', [\App\Modules\Production\Controllers\ProductionOrderController::class, 'updateStatus'])->name('production.orders.status');
         Route::post('production/orders/{order}/log-time', [\App\Modules\Production\Controllers\ProductionOrderController::class, 'logTime'])->name('production.orders.log-time');
     });
 
-    // Módulo Suprimentos & Controle de Estoque (Balances: consulta aberta para vendas/produção; Kardex/Ajustes: produção e admin)
-    Route::middleware('tenant.role:admin,sales,production')->group(function () {
+    // Módulo Suprimentos & Controle de Estoque (Balances: consulta aberta para vendas/produção)
+    Route::middleware('tenant.role:admin,sales,production,inventory')->group(function () {
         Route::get('inventory/balances', [\App\Modules\Inventory\Controllers\InventoryBalanceController::class, 'index'])->name('tenant.inventory.balances.index');
     });
 
-    Route::middleware('tenant.role:admin,production')->group(function () {
+    // Razão Kardex & Movimentações de Ajuste
+    Route::middleware('tenant.role:admin,production,kardex')->group(function () {
         Route::get('inventory/kardex', [\App\Modules\Inventory\Controllers\KardexController::class, 'index'])->name('tenant.inventory.kardex.index');
         Route::get('inventory/adjustments/create', [\App\Modules\Inventory\Controllers\InventoryAdjustmentController::class, 'create'])->name('tenant.inventory.adjustments.create');
         Route::post('inventory/adjustments', [\App\Modules\Inventory\Controllers\InventoryAdjustmentController::class, 'store'])->name('tenant.inventory.adjustments.store');
@@ -91,25 +96,31 @@ Route::middleware([SetTenantContext::class])->group(function () {
     Route::middleware('tenant.role:admin,finance')->group(function () {
         Route::resource('finance/entries', \App\Modules\Finance\Controllers\FinancialEntryController::class)->names('tenant.finance.entries');
         Route::post('finance/payments', [\App\Modules\Finance\Controllers\FinancialPaymentController::class, 'store'])->name('tenant.finance.payments.store');
-        Route::get('finance/reports', [\App\Modules\Finance\Controllers\FinancialReportController::class, 'index'])->name('tenant.finance.reports.index');
-
-        // Salvar configurações fiscais (acessível por admin e financeiro)
-        Route::post('settings/fiscal', [\App\Modules\Integrations\Controllers\FiscalSettingsController::class, 'store'])->name('tenant.settings.fiscal.store');
     });
 
-    // Módulo Configurações Fiscais e Gateways (Acessível por Admin e Financeiro)
-    Route::middleware('tenant.role:admin,finance')->group(function () {
+    // Módulo Relatórios Gerenciais, Fluxo de Caixa & DRE
+    Route::middleware('tenant.role:admin,finance,reports')->group(function () {
+        Route::get('finance/reports', [\App\Modules\Finance\Controllers\FinancialReportController::class, 'index'])->name('tenant.finance.reports.index');
+    });
+
+    // Módulo Configurações Fiscais e Gateways (Acessível por Admin, Financeiro e Gestor Fiscal)
+    Route::middleware('tenant.role:admin,finance,settings_fiscal')->group(function () {
         Route::get('settings/fiscal', [\App\Modules\Integrations\Controllers\FiscalSettingsController::class, 'index'])->name('tenant.settings.fiscal.index');
         Route::post('settings/fiscal', [\App\Modules\Integrations\Controllers\FiscalSettingsController::class, 'store'])->name('tenant.settings.fiscal.store');
     });
 
     // Módulo Central de Configurações da Empresa & Status (Admin / Dono)
-    Route::middleware('tenant.role:admin')->group(function () {
+    Route::middleware('tenant.role:admin,settings_admin')->group(function () {
         Route::get('settings', [CompanySettingsController::class, 'index'])->name('tenant.settings.index');
         Route::put('settings/company', [CompanySettingsController::class, 'updateCompany'])->name('tenant.settings.company.update');
         Route::post('settings/employees', [CompanySettingsController::class, 'storeEmployee'])->name('tenant.settings.employees.store');
         Route::put('settings/employees/{user}', [CompanySettingsController::class, 'updateEmployee'])->name('tenant.settings.employees.update');
         Route::delete('settings/employees/{user}', [CompanySettingsController::class, 'destroyEmployee'])->name('tenant.settings.employees.destroy');
+
+        // Gestão de Cargos e Funções Customizadas da Empresa
+        Route::post('settings/roles', [CompanySettingsController::class, 'storeRole'])->name('tenant.settings.roles.store');
+        Route::put('settings/roles/{role}', [CompanySettingsController::class, 'updateRole'])->name('tenant.settings.roles.update');
+        Route::delete('settings/roles/{role}', [CompanySettingsController::class, 'destroyRole'])->name('tenant.settings.roles.destroy');
 
         Route::resource('settings/statuses', TenantStatusController::class)->names('tenant.settings.statuses');
     });

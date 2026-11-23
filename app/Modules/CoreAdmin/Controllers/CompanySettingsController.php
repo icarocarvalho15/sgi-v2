@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Modules\CoreAdmin\Controllers;
 
+use App\Core\Security\Rules\TenantExists;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\TenantContext;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Modules\CoreAdmin\Models\TenantRole;
 use App\Modules\CoreAdmin\Models\TenantStatus;
+use App\Modules\CoreAdmin\Services\DefaultRolesSeederService;
 use App\Modules\Integrations\Models\PaymentGatewayConfig;
 use App\Modules\Integrations\Models\TenantFiscalSetting;
 use Illuminate\Http\RedirectResponse;
@@ -32,16 +35,29 @@ class CompanySettingsController extends Controller
 
         $activeTab = $request->query('tab', 'company');
 
-        // 1. Dados da Empresa e Funcionários
-        $employees = User::where('tenant_id', $tenant->id)
-            ->orderBy('name')
-            ->get(['id', 'name', 'email', 'role', 'is_active', 'created_at']);
+        // Garante que o tenant tenha os cargos padrão se ainda não foram criados
+        if (! TenantRole::where('tenant_id', $tenant->id)->exists()) {
+            DefaultRolesSeederService::seedForTenant($tenant->id);
+        }
 
-        // 2. Configurações Fiscais & Meios de Pagamento
+        // 1. Cargos & Funções da Empresa
+        $roles = TenantRole::where('tenant_id', $tenant->id)
+            ->ordered()
+            ->get(['id', 'name', 'slug', 'description', 'color', 'permissions', 'is_system']);
+
+        $availableModules = DefaultRolesSeederService::getAvailableModules();
+
+        // 2. Dados da Empresa e Funcionários
+        $employees = User::where('tenant_id', $tenant->id)
+            ->with('tenantRole')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'role', 'role_id', 'is_active', 'created_at']);
+
+        // 3. Configurações Fiscais & Meios de Pagamento
         $fiscalSettings = TenantFiscalSetting::where('tenant_id', $tenant->id)->first();
         $gateways = PaymentGatewayConfig::where('tenant_id', $tenant->id)->get();
 
-        // 3. Status Customizáveis
+        // 4. Status Customizáveis
         $statuses = TenantStatus::where('tenant_id', $tenant->id)
             ->orderBy('module')
             ->orderBy('position')
@@ -53,42 +69,16 @@ class CompanySettingsController extends Controller
             'crm_deals' => $statuses->where('module', 'crm_deals')->values(),
         ];
 
-        $rolesDefinition = [
-            'admin' => [
-                'name' => 'Dono / Administrador Geral',
-                'description' => 'Acesso total irrestrito a todos os módulos, financeiro confidencial, DRE, PCP e configurações.',
-                'color' => '#6366F1',
-                'modules' => ['Clientes', 'Orçamentos', 'Engenharia (BOM)', 'Chão de Fábrica (OPs)', 'Estoque & Kardex', 'Financeiro & DRE', 'Configurações'],
-            ],
-            'sales' => [
-                'name' => 'Vendedor / Comercial',
-                'description' => 'Focado na captação de clientes, elaboração de orçamentos técnicos gráficos e acompanhamento do funil de vendas.',
-                'color' => '#0EA5E9',
-                'modules' => ['Clientes & Fornecedores', 'Orçamentos Técnicos & Funil', 'Consulta de Estoque'],
-            ],
-            'production' => [
-                'name' => 'Chão de Fábrica / PCP',
-                'description' => 'Acesso à engenharia gráfica, fichas técnicas (BOM), execução de ordens de produção e controle de almoxarifado/insumos.',
-                'color' => '#F59E0B',
-                'modules' => ['Fichas Técnicas (BOM)', 'Chão de Fábrica (OPs)', 'Apontamento de Horas', 'Estoque & Kardex'],
-            ],
-            'finance' => [
-                'name' => 'Financeiro / Fiscal',
-                'description' => 'Gestão de contas a pagar/receber, conciliação, fluxo de caixa, DRE gerencial e parâmetros fiscais/NFe.',
-                'color' => '#10B981',
-                'modules' => ['Clientes & Fornecedores', 'Financeiro (Títulos)', 'Fluxo & DRE', 'Configurações Fiscais'],
-            ],
-        ];
-
         return Inertia::render('Tenant/Settings/Index', [
             'tenant' => $tenant,
             'employees' => $employees,
+            'roles' => $roles,
+            'availableModules' => $availableModules,
             'fiscalSettings' => $fiscalSettings,
             'gateways' => $gateways,
             'hasCertificate' => ! empty($fiscalSettings?->certificate_a1_encrypted),
             'statusesByModule' => $statusesByModule,
             'activeTab' => $activeTab,
-            'rolesDefinition' => $rolesDefinition,
         ]);
     }
 
@@ -160,6 +150,106 @@ class CompanySettingsController extends Controller
     }
 
     /**
+     * Criação de Novo Cargo / Função Customizada.
+     */
+    public function storeRole(Request $request): RedirectResponse
+    {
+        $tenant = TenantContext::get();
+        if (! $tenant) {
+            abort(404, 'Empresa não identificada.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'color' => ['required', 'string', 'regex:/^#[a-fA-F0-9]{6}$/'],
+            'permissions' => ['required', 'array', 'min:1'],
+            'permissions.*' => ['string'],
+        ]);
+
+        $role = TenantRole::create([
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']),
+            'description' => $validated['description'] ?? null,
+            'color' => $validated['color'],
+            'permissions' => $validated['permissions'],
+            'is_system' => false,
+        ]);
+
+        return redirect()->route('tenant.settings.index', ['tab' => 'employees'])
+            ->with('success', "Cargo \"{$role->name}\" criado com sucesso!");
+    }
+
+    /**
+     * Atualização de Cargo / Função Customizada.
+     */
+    public function updateRole(Request $request, TenantRole $role): RedirectResponse
+    {
+        $tenant = TenantContext::get();
+        if (! $tenant || $role->tenant_id !== $tenant->id) {
+            abort(403, 'Você não tem permissão para editar este cargo.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'color' => ['required', 'string', 'regex:/^#[a-fA-F0-9]{6}$/'],
+            'permissions' => ['required', 'array', 'min:1'],
+            'permissions.*' => ['string'],
+        ]);
+
+        $updateData = [
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'color' => $validated['color'],
+        ];
+
+        // Se for o cargo do sistema Dono / Administrador, mantém permissão total
+        if (! $role->is_system) {
+            $updateData['permissions'] = $validated['permissions'];
+            $updateData['slug'] = Str::slug($validated['name']);
+        }
+
+        $role->update($updateData);
+
+        return redirect()->route('tenant.settings.index', ['tab' => 'employees'])
+            ->with('success', "Cargo \"{$role->name}\" atualizado com sucesso!");
+    }
+
+    /**
+     * Remoção de Cargo / Função Customizada.
+     */
+    public function destroyRole(Request $request, TenantRole $role): RedirectResponse
+    {
+        $tenant = TenantContext::get();
+        if (! $tenant || $role->tenant_id !== $tenant->id) {
+            abort(403, 'Você não tem permissão para remover este cargo.');
+        }
+
+        if ($role->is_system || $role->slug === 'admin') {
+            return back()->with('error', 'O cargo de Dono / Administrador é protegido pelo sistema e não pode ser excluído.');
+        }
+
+        // Verifica se há funcionários com este cargo
+        $hasUsers = User::where('tenant_id', $tenant->id)
+            ->where(function ($q) use ($role) {
+                $q->where('role_id', $role->id)
+                  ->orWhere('role', $role->slug);
+            })
+            ->exists();
+
+        if ($hasUsers) {
+            return back()->with('error', "Não é possível excluir o cargo \"{$role->name}\" pois existem funcionários com esta função. Reatribua-os antes de excluir.");
+        }
+
+        $name = $role->name;
+        $role->delete();
+
+        return redirect()->route('tenant.settings.index', ['tab' => 'employees'])
+            ->with('success', "Cargo \"{$name}\" removido com sucesso!");
+    }
+
+    /**
      * Cadastro de Novo Funcionário / Usuário da Empresa.
      */
     public function storeEmployee(Request $request): RedirectResponse
@@ -173,15 +263,32 @@ class CompanySettingsController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6'],
-            'role' => ['required', 'string', 'in:admin,sales,production,finance'],
+            'role' => ['nullable', 'string', 'max:100'],
+            'role_id' => ['nullable', 'uuid', new TenantExists('tenant_roles', 'id')],
         ]);
+
+        $roleId = $validated['role_id'] ?? null;
+        $roleSlug = $validated['role'] ?? 'sales';
+
+        if (! empty($roleId)) {
+            $roleObj = TenantRole::where('tenant_id', $tenant->id)->find($roleId);
+            if ($roleObj) {
+                $roleSlug = $roleObj->slug;
+            }
+        } elseif (! empty($roleSlug)) {
+            $roleObj = TenantRole::where('tenant_id', $tenant->id)->where('slug', $roleSlug)->first();
+            if ($roleObj) {
+                $roleId = $roleObj->id;
+            }
+        }
 
         $employee = User::create([
             'tenant_id' => $tenant->id,
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
+            'role' => $roleSlug,
+            'role_id' => $roleId,
             'is_active' => true,
             'is_super_admin' => false,
         ]);
@@ -190,7 +297,7 @@ class CompanySettingsController extends Controller
         $tenant->members()->syncWithoutDetaching([
             $employee->id => [
                 'id' => (string) Str::uuid(),
-                'role' => $validated['role'],
+                'role' => $roleSlug,
                 'is_active' => true,
             ],
         ]);
@@ -212,15 +319,34 @@ class CompanySettingsController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', "unique:users,email,{$user->id}"],
-            'role' => ['required', 'string', 'in:admin,sales,production,finance'],
+            'role' => ['nullable', 'string', 'max:100'],
+            'role_id' => ['nullable', 'uuid', new TenantExists('tenant_roles', 'id')],
             'is_active' => ['required', 'boolean'],
             'password' => ['nullable', 'string', 'min:6'],
         ]);
 
+        $roleId = $validated['role_id'] ?? $user->role_id;
+        $roleSlug = $validated['role'] ?? $user->role;
+
+        if (! empty($validated['role_id'])) {
+            $roleObj = TenantRole::where('tenant_id', $tenant->id)->find($validated['role_id']);
+            if ($roleObj) {
+                $roleSlug = $roleObj->slug;
+                $roleId = $roleObj->id;
+            }
+        } elseif (! empty($validated['role'])) {
+            $roleObj = TenantRole::where('tenant_id', $tenant->id)->where('slug', $validated['role'])->first();
+            if ($roleObj) {
+                $roleId = $roleObj->id;
+                $roleSlug = $roleObj->slug;
+            }
+        }
+
         $updateData = [
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'role' => $validated['role'],
+            'role' => $roleSlug,
+            'role_id' => $roleId,
             'is_active' => $validated['is_active'],
         ];
 
@@ -232,7 +358,7 @@ class CompanySettingsController extends Controller
 
         // Atualiza pivot tenant_user
         $tenant->members()->updateExistingPivot($user->id, [
-            'role' => $validated['role'],
+            'role' => $roleSlug,
             'is_active' => $validated['is_active'],
         ]);
 

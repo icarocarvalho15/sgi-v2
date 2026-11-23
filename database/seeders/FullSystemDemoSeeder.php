@@ -99,6 +99,7 @@ class FullSystemDemoSeeder extends Seeder
 
         TenantContext::set($tenant);
         DefaultStatusesSeederService::seedForTenant($tenant->id);
+        \App\Modules\CoreAdmin\Services\DefaultRolesSeederService::seedForTenant($tenant->id);
 
         // 2. Criar Usuários da Empresa (Dono, Vendedor, Produção, Financeiro) e SuperAdmin Landlord
         $user = User::forceCreate([

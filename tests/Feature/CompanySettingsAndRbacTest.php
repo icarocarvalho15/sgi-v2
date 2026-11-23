@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Core\Tenancy\Models\Tenant;
 use App\Core\Tenancy\TenantContext;
 use App\Models\User;
+use App\Modules\CoreAdmin\Models\TenantRole;
 use App\Modules\CoreAdmin\Services\DefaultStatusesSeederService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -33,6 +34,7 @@ class CompanySettingsAndRbacTest extends TestCase
 
         TenantContext::set($this->tenant);
         DefaultStatusesSeederService::seedForTenant($this->tenant->id);
+        \App\Modules\CoreAdmin\Services\DefaultRolesSeederService::seedForTenant($this->tenant->id);
 
         $suffix = Str::random(6);
 
@@ -94,7 +96,8 @@ class CompanySettingsAndRbacTest extends TestCase
             ->has('tenant')
             ->has('employees', 4)
             ->has('statusesByModule')
-            ->has('rolesDefinition')
+            ->has('roles')
+            ->has('availableModules')
         );
     }
 
@@ -224,5 +227,150 @@ class CompanySettingsAndRbacTest extends TestCase
 
         $response->assertRedirect(route('login'));
         $response->assertSessionHasErrors(['email']);
+    }
+
+    public function test_admin_can_create_update_and_delete_custom_roles(): void
+    {
+        // 1. Create custom role
+        $createResponse = $this->actingAs($this->adminUser)
+            ->post(route('tenant.settings.roles.store'), [
+                'name' => 'Orçamentista Gráfico',
+                'description' => 'Responsável por orçamentos de offset e brindes',
+                'color' => '#10B981',
+                'permissions' => ['crm', 'quotes'],
+            ]);
+
+        $createResponse->assertRedirect(route('tenant.settings.index', ['tab' => 'employees']));
+
+        TenantContext::set($this->tenant);
+        $role = TenantRole::where('tenant_id', $this->tenant->id)
+            ->where('slug', 'orcamentista-grafico')
+            ->first();
+
+        $this->assertNotNull($role);
+        $this->assertEquals('Orçamentista Gráfico', $role->name);
+        $this->assertEquals(['crm', 'quotes'], $role->permissions);
+        $this->assertFalse($role->is_system);
+
+        // 2. Update custom role
+        $updateResponse = $this->actingAs($this->adminUser)
+            ->put(route('tenant.settings.roles.update', $role), [
+                'name' => 'Orçamentista Gráfico Sênior',
+                'description' => 'Responsável sênior por orçamentos e fichas técnicas',
+                'color' => '#059669',
+                'permissions' => ['crm', 'quotes', 'boms'],
+            ]);
+
+        $updateResponse->assertRedirect(route('tenant.settings.index', ['tab' => 'employees']));
+
+        TenantContext::set($this->tenant);
+        $role->refresh();
+        $this->assertEquals('Orçamentista Gráfico Sênior', $role->name);
+        $this->assertEquals(['crm', 'quotes', 'boms'], $role->permissions);
+
+        // 3. Delete custom role (no employees assigned)
+        $deleteResponse = $this->actingAs($this->adminUser)
+            ->delete(route('tenant.settings.roles.destroy', $role));
+
+        $deleteResponse->assertRedirect(route('tenant.settings.index', ['tab' => 'employees']));
+
+        TenantContext::set($this->tenant);
+        $this->assertSoftDeleted('tenant_roles', ['id' => $role->id]);
+    }
+
+    public function test_admin_cannot_delete_root_admin_role(): void
+    {
+        TenantContext::set($this->tenant);
+        $adminRole = TenantRole::where('tenant_id', $this->tenant->id)
+            ->where('slug', 'admin')
+            ->first();
+
+        $this->assertNotNull($adminRole);
+
+        $response = $this->actingAs($this->adminUser)
+            ->delete(route('tenant.settings.roles.destroy', $adminRole));
+
+        $response->assertSessionHas('error');
+
+        TenantContext::set($this->tenant);
+        $this->assertDatabaseHas('tenant_roles', [
+            'id' => $adminRole->id,
+            'deleted_at' => null,
+        ]);
+    }
+
+    public function test_admin_cannot_delete_role_assigned_to_active_employees(): void
+    {
+        TenantContext::set($this->tenant);
+        // Cria cargo
+        $role = TenantRole::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Designer CTP',
+            'slug' => 'designer-ctp',
+            'color' => '#8B5CF6',
+            'permissions' => ['boms'],
+            'is_system' => false,
+        ]);
+
+        // Associa usuário ao cargo
+        $designerUser = User::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Designer Teste',
+            'email' => 'designer.' . Str::random(6) . '@graficaexpress.com',
+            'password' => Hash::make('password123'),
+            'role_id' => $role->id,
+            'role' => $role->slug,
+            'is_active' => true,
+        ]);
+
+        // Tenta excluir cargo
+        $response = $this->actingAs($this->adminUser)
+            ->delete(route('tenant.settings.roles.destroy', $role));
+
+        $response->assertSessionHas('error');
+
+        TenantContext::set($this->tenant);
+        $this->assertDatabaseHas('tenant_roles', [
+            'id' => $role->id,
+            'deleted_at' => null,
+        ]);
+    }
+
+    public function test_custom_role_permissions_accurately_control_module_access(): void
+    {
+        // Cria cargo com permissão apenas em Fichas Técnicas (BOM)
+        $role = TenantRole::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Engenheiro de Produto',
+            'slug' => 'engenheiro-produto',
+            'color' => '#EC4899',
+            'permissions' => ['boms'],
+            'is_system' => false,
+        ]);
+
+        $engineerUser = User::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Engenheiro Gráfico',
+            'email' => 'engenheiro.' . Str::random(6) . '@graficaexpress.com',
+            'password' => Hash::make('password123'),
+            'role_id' => $role->id,
+            'role' => $role->slug,
+            'is_active' => true,
+        ]);
+
+        // Pode acessar BOM
+        $bomResponse = $this->actingAs($engineerUser)
+            ->get(route('production.boms.index'));
+        $bomResponse->assertOk();
+
+        // Bloqueado em Orçamentos (403)
+        $quotesResponse = $this->actingAs($engineerUser)
+            ->get(route('quotes.index'));
+        $quotesResponse->assertStatus(403);
+
+        // Bloqueado em Financeiro (403)
+        $financeResponse = $this->actingAs($engineerUser)
+            ->get(route('tenant.finance.entries.index'));
+        $financeResponse->assertStatus(403);
     }
 }

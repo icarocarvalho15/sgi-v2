@@ -32,24 +32,26 @@ export default function AppLayout({ title, children }: Props) {
     const { flash, tenant, auth, impersonation } = usePage<any>().props;
 
     const userRole = auth?.user?.role || 'admin';
+    const allowedModules = auth?.user?.allowed_modules || [];
     const isSuperAdmin = auth?.user?.is_super_admin;
     const isImpersonating = impersonation?.is_impersonating;
+    const isAdmin = isSuperAdmin || userRole === 'admin' || userRole === 'owner' || allowedModules.includes('*');
 
     const allNavItems = [
-        { label: 'Clientes & Fornecedores', href: '/crm/partners', icon: Users, roles: ['admin', 'sales', 'finance'] },
-        { label: 'Orçamentos Técnicos', href: '/quotes', icon: FileText, roles: ['admin', 'sales'] },
-        { label: 'Fichas Técnicas (BOM)', href: '/production/boms', icon: Layers, roles: ['admin', 'production'] },
-        { label: 'Chão de Fábrica (OPs)', href: '/production/orders', icon: Sliders, roles: ['admin', 'production'] },
-        { label: 'Estoque & Saldos', href: '/inventory/balances', icon: Boxes, roles: ['admin', 'sales', 'production'] },
-        { label: 'Razão Kardex', href: '/inventory/kardex', icon: FileSpreadsheet, roles: ['admin', 'production'] },
-        { label: 'Financeiro (Títulos)', href: '/finance/entries', icon: DollarSign, roles: ['admin', 'finance'] },
-        { label: 'Fluxo & DRE', href: '/finance/reports', icon: TrendingUp, roles: ['admin', 'finance'] },
-        { label: 'Configurações da Empresa', href: '/settings', icon: Settings, roles: ['admin'] },
+        { label: 'Clientes & Fornecedores', href: '/crm/partners', icon: Users, module: 'crm' },
+        { label: 'Orçamentos Técnicos', href: '/quotes', icon: FileText, module: 'quotes' },
+        { label: 'Fichas Técnicas (BOM)', href: '/production/boms', icon: Layers, module: 'boms' },
+        { label: 'Chão de Fábrica (OPs)', href: '/production/orders', icon: Sliders, module: 'production' },
+        { label: 'Estoque & Saldos', href: '/inventory/balances', icon: Boxes, module: 'inventory' },
+        { label: 'Razão Kardex', href: '/inventory/kardex', icon: FileSpreadsheet, module: 'kardex' },
+        { label: 'Financeiro (Títulos)', href: '/finance/entries', icon: DollarSign, module: 'finance' },
+        { label: 'Fluxo & DRE', href: '/finance/reports', icon: TrendingUp, module: 'reports' },
+        { label: 'Configurações da Empresa', href: '/settings', icon: Settings, module: 'settings_admin' },
     ];
 
     const navItems = allNavItems.filter((item) => {
-        if (isSuperAdmin || userRole === 'admin' || userRole === 'owner') return true;
-        return item.roles.includes(userRole);
+        if (isAdmin) return true;
+        return allowedModules.includes(item.module);
     });
 
     const handleLogout = () => {

@@ -11,7 +11,6 @@ import {
     Trash2, 
     CheckCircle2, 
     XCircle, 
-    Search, 
     Lock, 
     Mail, 
     Phone, 
@@ -23,8 +22,13 @@ import {
     Layers,
     FileText,
     Kanban,
-    Eye,
-    CreditCard
+    CreditCard,
+    Boxes,
+    FileSpreadsheet,
+    DollarSign,
+    TrendingUp,
+    CheckSquare,
+    Square
 } from 'lucide-react';
 
 interface TenantData {
@@ -49,11 +53,22 @@ interface TenantData {
     } | null;
 }
 
+interface TenantRole {
+    id: string;
+    name: string;
+    slug: string;
+    description?: string | null;
+    color: string;
+    permissions: string[];
+    is_system: boolean;
+}
+
 interface Employee {
     id: string;
     name: string;
     email: string;
     role: string;
+    role_id?: string | null;
     role_name: string;
     role_color: string;
     is_active: boolean;
@@ -90,16 +105,11 @@ interface TenantStatus {
     is_final: boolean;
 }
 
-interface RoleDefinition {
-    name: string;
-    description: string;
-    color: string;
-    modules: string[];
-}
-
 interface Props {
     tenant: TenantData;
     employees: Employee[];
+    roles: TenantRole[];
+    availableModules: Record<string, { name: string; description: string }>;
     fiscalSettings: FiscalSettings | null;
     gateways: GatewayConfig[];
     hasCertificate: boolean;
@@ -109,22 +119,26 @@ interface Props {
         crm_deals: TenantStatus[];
     };
     activeTab?: string;
-    rolesDefinition: Record<string, RoleDefinition>;
 }
 
 export default function SettingsHub({ 
     tenant, 
     employees, 
+    roles = [],
+    availableModules = {},
     fiscalSettings, 
     gateways, 
     hasCertificate, 
     statusesByModule,
-    activeTab: initialTab = 'company',
-    rolesDefinition 
+    activeTab: initialTab = 'company'
 }: Props) {
     const [currentTab, setCurrentTab] = useState<'company' | 'employees' | 'fiscal' | 'statuses'>(
         (initialTab as any) || 'company'
     );
+
+    // Modal de Cargos / Funções
+    const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+    const [editingRole, setEditingRole] = useState<TenantRole | null>(null);
 
     // Modal de Funcionários
     const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
@@ -157,16 +171,25 @@ export default function SettingsHub({
         state: tenant.settings?.address?.state || '',
     });
 
-    // 2. FORMULÁRIO DE FUNCIONÁRIO (Criação/Edição)
+    // 2. FORMULÁRIO DE CARGO / FUNÇÃO
+    const roleForm = useForm({
+        name: '',
+        description: '',
+        color: '#6366F1',
+        permissions: [] as string[],
+    });
+
+    // 3. FORMULÁRIO DE FUNCIONÁRIO (Criação/Edição)
     const employeeForm = useForm({
         name: '',
         email: '',
-        role: 'sales',
+        role_id: roles[0]?.id || '',
+        role: roles[0]?.slug || 'sales',
         password: '',
         is_active: true,
     });
 
-    // 3. FORMULÁRIO FISCAL & GATEWAYS
+    // 4. FORMULÁRIO FISCAL & GATEWAYS
     const fiscalForm = useForm({
         cnpj: fiscalSettings?.cnpj || tenant.document_number || '',
         state_registration: fiscalSettings?.state_registration || '',
@@ -182,7 +205,7 @@ export default function SettingsHub({
         gateway_webhook_secret: '',
     });
 
-    // 4. FORMULÁRIO DE STATUS
+    // 5. FORMULÁRIO DE STATUS
     const statusForm = useForm({
         module: statusModule,
         name: '',
@@ -253,25 +276,87 @@ export default function SettingsHub({
         companyForm.put('/settings/company');
     };
 
-    // Abertura Modal Novo Funcionário
+    // =========================================================================
+    // GESTÃO DE CARGOS / FUNÇÕES
+    // =========================================================================
+    const openCreateRoleModal = () => {
+        setEditingRole(null);
+        roleForm.reset({
+            name: '',
+            description: '',
+            color: '#6366F1',
+            permissions: ['quotes', 'crm'],
+        });
+        setIsRoleModalOpen(true);
+    };
+
+    const openEditRoleModal = (r: TenantRole) => {
+        setEditingRole(r);
+        roleForm.setData({
+            name: r.name,
+            description: r.description || '',
+            color: r.color,
+            permissions: r.permissions || [],
+        });
+        setIsRoleModalOpen(true);
+    };
+
+    const togglePermission = (modKey: string) => {
+        const current = roleForm.data.permissions;
+        if (current.includes(modKey)) {
+            roleForm.setData('permissions', current.filter((k) => k !== modKey));
+        } else {
+            roleForm.setData('permissions', [...current, modKey]);
+        }
+    };
+
+    const handleRoleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (editingRole) {
+            roleForm.put(`/settings/roles/${editingRole.id}`, {
+                onSuccess: () => setIsRoleModalOpen(false),
+            });
+        } else {
+            roleForm.post('/settings/roles', {
+                onSuccess: () => setIsRoleModalOpen(false),
+            });
+        }
+    };
+
+    const handleDeleteRole = (r: TenantRole) => {
+        if (r.is_system || r.slug === 'admin') {
+            alert('O cargo de Dono / Administrador é protegido pelo sistema e não pode ser excluído.');
+            return;
+        }
+
+        if (confirm(`Tem certeza que deseja remover o cargo "${r.name}"?`)) {
+            router.delete(`/settings/roles/${r.id}`);
+        }
+    };
+
+    // =========================================================================
+    // GESTÃO DE FUNCIONÁRIOS
+    // =========================================================================
     const openCreateEmployeeModal = () => {
         setEditingEmployee(null);
+        const defaultRole = roles.find((r) => r.slug === 'sales') || roles[0];
         employeeForm.reset({
             name: '',
             email: '',
-            role: 'sales',
+            role_id: defaultRole?.id || '',
+            role: defaultRole?.slug || 'sales',
             password: '',
             is_active: true,
         });
         setIsEmployeeModalOpen(true);
     };
 
-    // Abertura Modal Editar Funcionário
     const openEditEmployeeModal = (emp: Employee) => {
         setEditingEmployee(emp);
         employeeForm.setData({
             name: emp.name,
             email: emp.email,
+            role_id: emp.role_id || '',
             role: emp.role,
             password: '',
             is_active: emp.is_active,
@@ -279,7 +364,6 @@ export default function SettingsHub({
         setIsEmployeeModalOpen(true);
     };
 
-    // Submissão Funcionário
     const handleEmployeeSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (editingEmployee) {
@@ -293,7 +377,6 @@ export default function SettingsHub({
         }
     };
 
-    // Remoção de Funcionário
     const handleDeleteEmployee = (emp: Employee) => {
         if (confirm(`Tem certeza que deseja remover o funcionário ${emp.name}?`)) {
             router.delete(`/settings/employees/${emp.id}`);
@@ -374,7 +457,7 @@ export default function SettingsHub({
                             Configurações Gerais & Níveis de Acesso
                         </h1>
                         <p className="text-sm text-slate-400 mt-0.5">
-                            Gerencie os dados cadastrais da gráfica, equipe de funcionários com perfis restritos, parâmetros fiscais e etapas de fluxo.
+                            Gerencie os dados cadastrais da gráfica, equipe de funcionários, cargos customizáveis com suas atribuições, parâmetros fiscais e etapas operacionais.
                         </p>
                     </div>
 
@@ -676,147 +759,227 @@ export default function SettingsHub({
                 )}
 
                 {/* ========================================================================= */}
-                {/* ABA 2: FUNCIONÁRIOS & PERMISSÕES                                         */}
+                {/* ABA 2: FUNCIONÁRIOS & PERMISSÕES (COM CARGOS DINÂMICOS)                   */}
                 {/* ========================================================================= */}
                 {currentTab === 'employees' && (
-                    <div className="space-y-6">
-                        {/* Cards Resumo das Permissões por Função */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            {Object.entries(rolesDefinition).map(([roleKey, def]) => (
-                                <div
-                                    key={roleKey}
-                                    className="p-4 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-2"
-                                >
+                    <div className="space-y-8">
+                        {/* SEÇÃO 1: CARGOS & FUNÇÕES CUSTOMIZADAS DA EMPRESA */}
+                        <div className="space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div>
                                     <div className="flex items-center gap-2">
-                                        <span
-                                            className="w-2.5 h-2.5 rounded-full"
-                                            style={{ backgroundColor: def.color }}
-                                        />
-                                        <h3 className="font-semibold text-xs text-white truncate">
-                                            {def.name}
+                                        <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                            <Sliders className="w-4 h-4 text-indigo-400" />
+                                            Cargos, Funções & Atribuições da Empresa
                                         </h3>
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                            {roles.length} cadastrados
+                                        </span>
                                     </div>
-                                    <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                                        {def.description}
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        Personalize a nomenclatura dos cargos da sua gráfica e defina exatamente quais módulos cada função tem permissão de operar.
                                     </p>
-                                    <div className="pt-2 border-t border-slate-800/80 flex flex-wrap gap-1">
-                                        {def.modules.map((m) => (
-                                            <span
-                                                key={m}
-                                                className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300"
-                                            >
-                                                {m}
-                                            </span>
-                                        ))}
-                                    </div>
                                 </div>
-                            ))}
-                        </div>
 
-                        {/* Barra de Ações de Funcionários */}
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-base font-bold text-white">Equipe de Funcionários da Gráfica</h3>
-                                <p className="text-xs text-slate-400">
-                                    Cadastre operadores, vendedores e gerentes com credenciais exclusivas e isolamento de módulos.
-                                </p>
+                                <button
+                                    onClick={openCreateRoleModal}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-white rounded-xl text-xs font-semibold transition-all border border-slate-700/80 shadow"
+                                >
+                                    <Plus className="w-4 h-4 text-indigo-400" />
+                                    Nova Função / Cargo
+                                </button>
                             </div>
 
-                            <button
-                                onClick={openCreateEmployeeModal}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-all shadow-md shadow-indigo-600/20"
-                            >
-                                <Plus className="w-4 h-4" />
-                                Cadastrar Novo Funcionário
-                            </button>
-                        </div>
+                            {/* Grid de Cargos */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {roles.map((r) => {
+                                    const isRootAdmin = r.slug === 'admin' || r.is_system;
 
-                        {/* Tabela de Funcionários */}
-                        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-sm text-slate-300">
-                                    <thead className="bg-slate-800/40 text-xs font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                                        <tr>
-                                            <th className="px-6 py-4">Nome do Funcionário</th>
-                                            <th className="px-6 py-4">E-mail de Acesso</th>
-                                            <th className="px-6 py-4">Perfil / Função</th>
-                                            <th className="px-6 py-4">Status</th>
-                                            <th className="px-6 py-4 text-right">Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800/60">
-                                        {employees.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                                                    Nenhum funcionário cadastrado.
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            employees.map((emp) => (
-                                                <tr key={emp.id} className="hover:bg-slate-800/30 transition-colors">
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-indigo-400 border border-slate-700">
-                                                                {emp.name.substring(0, 2).toUpperCase()}
-                                                            </div>
-                                                            <span className="font-medium text-slate-200">
-                                                                {emp.name}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 font-mono text-xs text-slate-400">
-                                                        {emp.email}
-                                                    </td>
-                                                    <td className="px-6 py-4">
+                                    return (
+                                        <div
+                                            key={r.id}
+                                            className="p-4 bg-slate-900/60 border border-slate-800 rounded-2xl flex flex-col justify-between space-y-3 hover:border-slate-700/80 transition-all shadow-sm"
+                                        >
+                                            <div className="space-y-2">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex items-center gap-2 min-w-0">
                                                         <span
-                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
-                                                            style={{
-                                                                color: emp.role_color,
-                                                                borderColor: `${emp.role_color}40`,
-                                                                backgroundColor: `${emp.role_color}15`,
-                                                            }}
-                                                        >
-                                                            <span
-                                                                className="w-1.5 h-1.5 rounded-full"
-                                                                style={{ backgroundColor: emp.role_color }}
-                                                            />
-                                                            {emp.role_name}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        {emp.is_active ? (
-                                                            <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
-                                                                <CheckCircle2 className="w-3.5 h-3.5" /> Ativo
+                                                            className="w-3 h-3 rounded-full shrink-0"
+                                                            style={{ backgroundColor: r.color }}
+                                                        />
+                                                        <h4 className="font-semibold text-xs text-white truncate">
+                                                            {r.name}
+                                                        </h4>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        {isRootAdmin ? (
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-indigo-400 border border-indigo-500/20">
+                                                                Protegido
                                                             </span>
                                                         ) : (
-                                                            <span className="inline-flex items-center gap-1 text-xs text-rose-400">
-                                                                <XCircle className="w-3.5 h-3.5" /> Inativo
-                                                            </span>
+                                                            <>
+                                                                <button
+                                                                    onClick={() => openEditRoleModal(r)}
+                                                                    className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                                                                    title="Editar cargo e permissões"
+                                                                >
+                                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteRole(r)}
+                                                                    className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded transition-colors"
+                                                                    title="Remover cargo"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </>
                                                         )}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <button
-                                                                onClick={() => openEditEmployeeModal(emp)}
-                                                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-                                                                title="Editar dados ou permissões"
+                                                    </div>
+                                                </div>
+
+                                                <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed min-h-[2rem]">
+                                                    {r.description || 'Sem descrição cadastrada.'}
+                                                </p>
+                                            </div>
+
+                                            {/* Pílulas de Módulos Autorizados */}
+                                            <div className="pt-2 border-t border-slate-800/80">
+                                                <span className="text-[10px] text-slate-500 font-medium block mb-1">
+                                                    Módulos Autorizados:
+                                                </span>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {r.slug === 'admin' ? (
+                                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/20 font-medium">
+                                                            Acesso Total a Todos os Módulos
+                                                        </span>
+                                                    ) : (
+                                                        (r.permissions || []).map((modKey) => (
+                                                            <span
+                                                                key={modKey}
+                                                                className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/50"
                                                             >
-                                                                <Edit2 className="w-3.5 h-3.5" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeleteEmployee(emp)}
-                                                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
-                                                                title="Remover funcionário"
-                                                            >
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </div>
+                                                                {availableModules[modKey]?.name || modKey}
+                                                            </span>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* SEÇÃO 2: EQUIPE DE FUNCIONÁRIOS */}
+                        <div className="space-y-4 pt-4 border-t border-slate-800/80">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                                        <Users className="w-4 h-4 text-indigo-400" />
+                                        Equipe de Funcionários da Gráfica
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        Cadastre e gerencie os operadores, vendedores e gerentes com credenciais exclusivas e isolamento de módulos.
+                                    </p>
+                                </div>
+
+                                <button
+                                    onClick={openCreateEmployeeModal}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-all shadow-md shadow-indigo-600/20"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Cadastrar Novo Funcionário
+                                </button>
+                            </div>
+
+                            {/* Tabela de Funcionários */}
+                            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm text-slate-300">
+                                        <thead className="bg-slate-800/40 text-xs font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                                            <tr>
+                                                <th className="px-6 py-4">Nome do Funcionário</th>
+                                                <th className="px-6 py-4">E-mail de Acesso</th>
+                                                <th className="px-6 py-4">Perfil / Função</th>
+                                                <th className="px-6 py-4">Status</th>
+                                                <th className="px-6 py-4 text-right">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/60">
+                                            {employees.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                                                        Nenhum funcionário cadastrado.
                                                     </td>
                                                 </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
+                                            ) : (
+                                                employees.map((emp) => (
+                                                    <tr key={emp.id} className="hover:bg-slate-800/30 transition-colors">
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs text-indigo-400 border border-slate-700">
+                                                                    {emp.name.substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                                <span className="font-medium text-slate-200">
+                                                                    {emp.name}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 font-mono text-xs text-slate-400">
+                                                            {emp.email}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span
+                                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border"
+                                                                style={{
+                                                                    color: emp.role_color,
+                                                                    borderColor: `${emp.role_color}40`,
+                                                                    backgroundColor: `${emp.role_color}15`,
+                                                                }}
+                                                            >
+                                                                <span
+                                                                    className="w-1.5 h-1.5 rounded-full"
+                                                                    style={{ backgroundColor: emp.role_color }}
+                                                                />
+                                                                {emp.role_name}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {emp.is_active ? (
+                                                                <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
+                                                                    <CheckCircle2 className="w-3.5 h-3.5" /> Ativo
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 text-xs text-rose-400">
+                                                                    <XCircle className="w-3.5 h-3.5" /> Inativo
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => openEditEmployeeModal(emp)}
+                                                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                                                                    title="Editar dados ou permissões"
+                                                                >
+                                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteEmployee(emp)}
+                                                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
+                                                                    title="Remover funcionário"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1166,6 +1329,147 @@ export default function SettingsHub({
             </div>
 
             {/* ========================================================================= */}
+            {/* MODAL: CADASTRO / EDIÇÃO DE CARGO & ATRIBUIÇÕES                           */}
+            {/* ========================================================================= */}
+            {isRoleModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <Sliders className="w-5 h-5 text-indigo-400" />
+                                {editingRole ? `Editar Cargo: ${editingRole.name}` : 'Novo Cargo / Função'}
+                            </h3>
+                            <button
+                                onClick={() => setIsRoleModalOpen(false)}
+                                className="text-slate-400 hover:text-white"
+                            >
+                                <XCircle className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleRoleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">
+                                    Título / Nome do Cargo *
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Ex: Orçamentista Técnico Gráfico, Impressor Offset, etc."
+                                    value={roleForm.data.name}
+                                    onChange={(e) => roleForm.setData('name', e.target.value)}
+                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                                    required
+                                    disabled={editingRole?.is_system && editingRole?.slug === 'admin'}
+                                />
+                                {roleForm.errors.name && (
+                                    <p className="text-xs text-rose-400 mt-1">{roleForm.errors.name}</p>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        Cor Identificadora do Cargo
+                                    </label>
+                                    <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
+                                        <input
+                                            type="color"
+                                            value={roleForm.data.color}
+                                            onChange={(e) => roleForm.setData('color', e.target.value)}
+                                            className="w-7 h-7 rounded-lg bg-transparent cursor-pointer border-0"
+                                        />
+                                        <span className="font-mono text-xs text-slate-300">
+                                            {roleForm.data.color}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-slate-400 mb-1">
+                                        Descrição Breve das Responsabilidades
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ex: Atendimento a agências e cálculo de pré-impressão"
+                                        value={roleForm.data.description}
+                                        onChange={(e) => roleForm.setData('description', e.target.value)}
+                                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* MÓDULOS & PERMISSÕES */}
+                            <div className="pt-2">
+                                <label className="block text-xs font-medium text-slate-300 mb-2">
+                                    Atribuições & Módulos Autorizados para este Cargo:
+                                </label>
+
+                                {editingRole?.slug === 'admin' ? (
+                                    <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs text-indigo-300">
+                                        Este é o cargo master de Dono / Administrador. Ele possui acesso total a todos os módulos do ERP por definição de segurança.
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {Object.entries(availableModules).map(([modKey, modMeta]) => {
+                                            const isChecked = roleForm.data.permissions.includes(modKey);
+
+                                            return (
+                                                <div
+                                                    key={modKey}
+                                                    onClick={() => togglePermission(modKey)}
+                                                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                                                        isChecked
+                                                            ? 'bg-indigo-600/15 border-indigo-500/60 text-white'
+                                                            : 'bg-slate-950/80 border-slate-800/80 text-slate-400 hover:border-slate-700'
+                                                    }`}
+                                                >
+                                                    <div className="pt-0.5">
+                                                        {isChecked ? (
+                                                            <CheckSquare className="w-4 h-4 text-indigo-400" />
+                                                        ) : (
+                                                            <Square className="w-4 h-4 text-slate-600" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <h5 className="font-semibold text-xs leading-snug">
+                                                            {modMeta.name}
+                                                        </h5>
+                                                        <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
+                                                            {modMeta.description}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {roleForm.errors.permissions && (
+                                    <p className="text-xs text-rose-400 mt-1">{roleForm.errors.permissions}</p>
+                                )}
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsRoleModalOpen(false)}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={roleForm.processing}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/20 disabled:opacity-50"
+                                >
+                                    {roleForm.processing ? 'Salvando...' : 'Salvar Cargo'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ========================================================================= */}
             {/* MODAL: CADASTRO / EDIÇÃO DE FUNCIONÁRIO                                  */}
             {/* ========================================================================= */}
             {isEmployeeModalOpen && (
@@ -1221,21 +1525,33 @@ export default function SettingsHub({
 
                             <div>
                                 <label className="block text-xs font-medium text-slate-400 mb-1">
-                                    Perfil & Nível de Acesso *
+                                    Cargo / Atribuição *
                                 </label>
                                 <select
-                                    value={employeeForm.data.role}
-                                    onChange={(e) => employeeForm.setData('role', e.target.value)}
+                                    value={employeeForm.data.role_id || employeeForm.data.role}
+                                    onChange={(e) => {
+                                        const selectedRole = roles.find((r) => r.id === e.target.value || r.slug === e.target.value);
+                                        if (selectedRole) {
+                                            employeeForm.setData((prev) => ({
+                                                ...prev,
+                                                role_id: selectedRole.id,
+                                                role: selectedRole.slug,
+                                            }));
+                                        }
+                                    }}
                                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
                                 >
-                                    <option value="sales">Vendedor / Comercial (CRM & Orçamentos)</option>
-                                    <option value="production">Chão de Fábrica / PCP (BOM, OPs & Estoque)</option>
-                                    <option value="finance">Financeiro / Fiscal (Contas, Relatórios & DRE)</option>
-                                    <option value="admin">Dono / Administrador Geral (Acesso Total)</option>
+                                    {roles.map((r) => (
+                                        <option key={r.id} value={r.id}>
+                                            {r.name}
+                                        </option>
+                                    ))}
                                 </select>
-                                <p className="text-[11px] text-slate-500 mt-1">
-                                    {rolesDefinition[employeeForm.data.role]?.description}
-                                </p>
+                                {roles.find((r) => r.id === employeeForm.data.role_id || r.slug === employeeForm.data.role)?.description && (
+                                    <p className="text-[11px] text-slate-500 mt-1">
+                                        {roles.find((r) => r.id === employeeForm.data.role_id || r.slug === employeeForm.data.role)?.description}
+                                    </p>
+                                )}
                             </div>
 
                             <div>

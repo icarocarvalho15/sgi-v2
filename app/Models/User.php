@@ -33,6 +33,7 @@ class User extends Authenticatable
         'password',
         'tenant_id',
         'role',
+        'role_id',
         'is_active',
         'is_super_admin',
     ];
@@ -45,6 +46,7 @@ class User extends Authenticatable
     protected $appends = [
         'role_name',
         'role_color',
+        'allowed_modules',
     ];
 
     protected function casts(): array
@@ -69,6 +71,11 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function tenantRole(): BelongsTo
+    {
+        return $this->belongsTo(\App\Modules\CoreAdmin\Models\TenantRole::class, 'role_id');
+    }
+
     public function isSuperAdmin(): bool
     {
         return (bool) $this->is_super_admin;
@@ -81,44 +88,127 @@ class User extends Authenticatable
 
     public function isSales(): bool
     {
-        return $this->isAdmin() || $this->role === 'sales' || $this->role === 'vendedor';
+        return $this->isAdmin() || $this->hasPermissionToModule('quotes');
     }
 
     public function isProduction(): bool
     {
-        return $this->isAdmin() || $this->role === 'production' || $this->role === 'operator';
+        return $this->isAdmin() || $this->hasPermissionToModule('production');
     }
 
     public function isFinance(): bool
     {
-        return $this->isAdmin() || $this->role === 'finance';
+        return $this->isAdmin() || $this->hasPermissionToModule('finance');
     }
 
     /**
-     * Checks if user has any of the specified roles.
+     * Resolves the list of modules this user is authorized to access.
+     *
+     * @return array<int, string>
+     */
+    public function getAllowedModulesAttribute(): array
+    {
+        if ($this->isAdmin()) {
+            return ['*'];
+        }
+
+        // 1. Check direct role_id relation
+        if ($this->role_id) {
+            $roleObj = $this->relationLoaded('tenantRole') ? $this->tenantRole : \App\Modules\CoreAdmin\Models\TenantRole::find($this->role_id);
+            if ($roleObj) {
+                return $roleObj->permissions ?? [];
+            }
+        }
+
+        // 2. Check role slug in tenant_roles table
+        if (! empty($this->tenant_id) && ! empty($this->role)) {
+            $roleObj = \App\Modules\CoreAdmin\Models\TenantRole::where('tenant_id', $this->tenant_id)
+                ->where('slug', $this->role)
+                ->first();
+
+            if ($roleObj) {
+                return $roleObj->permissions ?? [];
+            }
+        }
+
+        // 3. Fallback standard mappings
+        return match ($this->role) {
+            'sales', 'vendedor' => ['crm', 'quotes', 'inventory'],
+            'production', 'operator' => ['boms', 'production', 'inventory', 'kardex'],
+            'finance' => ['crm', 'finance', 'reports', 'settings_fiscal'],
+            default => [],
+        };
+    }
+
+    /**
+     * Checks if user has permission to access a specific module.
+     */
+    public function hasPermissionToModule(string $module): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        $allowed = $this->allowed_modules;
+
+        if (in_array('*', $allowed, true)) {
+            return true;
+        }
+
+        return in_array($module, $allowed, true);
+    }
+
+    /**
+     * Checks if user has any of the specified roles or module permissions.
      *
      * @param string|array<string> $roles
      */
     public function hasRole(string|array $roles): bool
     {
-        if ($this->is_super_admin) {
+        if ($this->isAdmin()) {
             return true;
         }
 
         $rolesArray = is_array($roles) ? $roles : [$roles];
 
-        // Se for admin/owner do tenant, tem acesso irrestrito
-        if ($this->role === 'admin' || $this->role === 'owner') {
+        // 1. Match direct role slug
+        if (in_array($this->role, $rolesArray, true)) {
             return true;
         }
 
-        return in_array($this->role, $rolesArray, true);
+        // 2. Match module permissions
+        foreach ($rolesArray as $req) {
+            if ($this->hasPermissionToModule($req)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function getRoleNameAttribute(): string
     {
         if ($this->is_super_admin) {
             return 'SuperAdmin SaaS';
+        }
+
+        // 1. Direct role relation
+        if ($this->role_id) {
+            $roleObj = $this->relationLoaded('tenantRole') ? $this->tenantRole : \App\Modules\CoreAdmin\Models\TenantRole::find($this->role_id);
+            if ($roleObj) {
+                return $roleObj->name;
+            }
+        }
+
+        // 2. Slug lookup in tenant_roles
+        if (! empty($this->tenant_id) && ! empty($this->role)) {
+            $roleObj = \App\Modules\CoreAdmin\Models\TenantRole::where('tenant_id', $this->tenant_id)
+                ->where('slug', $this->role)
+                ->first();
+
+            if ($roleObj) {
+                return $roleObj->name;
+            }
         }
 
         return match ($this->role) {
@@ -134,6 +224,25 @@ class User extends Authenticatable
     {
         if ($this->is_super_admin) {
             return '#A855F7'; // Roxo
+        }
+
+        // 1. Direct role relation
+        if ($this->role_id) {
+            $roleObj = $this->relationLoaded('tenantRole') ? $this->tenantRole : \App\Modules\CoreAdmin\Models\TenantRole::find($this->role_id);
+            if ($roleObj) {
+                return $roleObj->color;
+            }
+        }
+
+        // 2. Slug lookup in tenant_roles
+        if (! empty($this->tenant_id) && ! empty($this->role)) {
+            $roleObj = \App\Modules\CoreAdmin\Models\TenantRole::where('tenant_id', $this->tenant_id)
+                ->where('slug', $this->role)
+                ->first();
+
+            if ($roleObj) {
+                return $roleObj->color;
+            }
         }
 
         return match ($this->role) {

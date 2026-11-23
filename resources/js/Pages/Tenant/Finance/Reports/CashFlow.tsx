@@ -10,8 +10,10 @@ import {
     FileSpreadsheet, 
     ArrowLeft,
     CheckCircle2,
-    PieChart
+    PieChart,
+    Download
 } from 'lucide-react';
+import { exportCashFlowAndDreToCsv } from '../../../../Utils/exportToCsv';
 
 interface Props {
     cashFlow: {
@@ -81,28 +83,40 @@ export default function CashFlowReport({ cashFlow, dre, filters }: Props) {
                         </p>
                     </div>
 
-                    {/* Date filter form */}
-                    <form onSubmit={handleFilter} className="flex items-center gap-2 bg-slate-900 p-2 rounded-xl border border-slate-800">
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-                        />
-                        <span className="text-slate-500 text-xs">até</span>
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
-                        />
+                    {/* Actions & Date filter form */}
+                    <div className="flex flex-wrap items-center gap-3">
                         <button
-                            type="submit"
-                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
+                            type="button"
+                            onClick={() => exportCashFlowAndDreToCsv(cashFlow, dre)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-colors shadow-sm"
+                            title="Exportar demonstrativo financeiro em CSV compatível com Excel"
                         >
-                            Filtrar
+                            <Download className="w-3.5 h-3.5 text-indigo-400" />
+                            Exportar Planilha (CSV)
                         </button>
-                    </form>
+
+                        <form onSubmit={handleFilter} className="flex items-center gap-2 bg-slate-900 p-2 rounded-xl border border-slate-800">
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                            />
+                            <span className="text-slate-500 text-xs">até</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                            />
+                            <button
+                                type="submit"
+                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-colors"
+                            >
+                                Filtrar
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
                 {/* Section 1: Fluxo de Caixa Realizado vs Projetado */}

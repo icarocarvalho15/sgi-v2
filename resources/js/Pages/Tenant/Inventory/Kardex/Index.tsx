@@ -12,8 +12,10 @@ import {
     ShieldCheck,
     Building2,
     Calendar,
-    Tag
+    Tag,
+    Download
 } from 'lucide-react';
+import { exportKardexToCsv } from '../../../../Utils/exportToCsv';
 
 interface ItemOption {
     id: string;
@@ -138,6 +140,15 @@ export default function KardexIndex({ movements, items, warehouses, selectedItem
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => exportKardexToCsv(movements.data)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors shadow-sm"
+                            title="Exportar movimentações Kardex em formato CSV compatível com Excel"
+                        >
+                            <Download className="w-3.5 h-3.5 text-emerald-400" />
+                            Exportar Planilha (CSV)
+                        </button>
                         <Link
                             href="/inventory/balances"
                             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition-colors"

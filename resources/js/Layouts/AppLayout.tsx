@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import { 
+    LayoutDashboard,
     Users, 
     Kanban, 
     FileText, 
@@ -38,19 +39,22 @@ export default function AppLayout({ title, children }: Props) {
     const isAdmin = isSuperAdmin || userRole === 'admin' || userRole === 'owner' || allowedModules.includes('*');
 
     const allNavItems = [
+        { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, module: 'dashboard' },
         { label: 'Clientes & Fornecedores', href: '/crm/partners', icon: Users, module: 'crm' },
         { label: 'Orçamentos Técnicos', href: '/quotes', icon: FileText, module: 'quotes' },
         { label: 'Fichas Técnicas (BOM)', href: '/production/boms', icon: Layers, module: 'boms' },
         { label: 'Chão de Fábrica (OPs)', href: '/production/orders', icon: Sliders, module: 'production' },
         { label: 'Estoque & Saldos', href: '/inventory/balances', icon: Boxes, module: 'inventory' },
-        { label: 'Razão Kardex', href: '/inventory/kardex', icon: FileSpreadsheet, module: 'kardex' },
-        { label: 'Financeiro (Títulos)', href: '/finance/entries', icon: DollarSign, module: 'finance' },
-        { label: 'Fluxo & DRE', href: '/finance/reports', icon: TrendingUp, module: 'reports' },
+        { label: 'Financeiro & Controladoria', href: '/finance', icon: DollarSign, module: 'finance' },
         { label: 'Configurações da Empresa', href: '/settings', icon: Settings, module: 'settings_admin' },
     ];
 
     const navItems = allNavItems.filter((item) => {
         if (isAdmin) return true;
+        if (item.module === 'dashboard') return true;
+        if (item.module === 'finance') {
+            return allowedModules.includes('finance') || allowedModules.includes('reports') || allowedModules.includes('kardex');
+        }
         return allowedModules.includes(item.module);
     });
 
@@ -99,7 +103,11 @@ export default function AppLayout({ title, children }: Props) {
 
                     {navItems.map((item) => {
                         const Icon = item.icon;
-                        const active = window.location.pathname.startsWith(item.href);
+                        const active = item.href === '/dashboard'
+                            ? (window.location.pathname === '/dashboard' || window.location.pathname === '/')
+                            : item.href === '/finance'
+                            ? (window.location.pathname.startsWith('/finance') || window.location.pathname.startsWith('/inventory/kardex'))
+                            : window.location.pathname.startsWith(item.href);
                         return (
                             <Link
                                 key={item.href}

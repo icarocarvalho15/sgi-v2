@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import AppLayout from '../../../../Layouts/AppLayout';
-import { Sliders, Building, Calendar, CheckCircle2, AlertCircle, ChevronRight, Play } from 'lucide-react';
+import { Sliders, Building, Calendar, CheckCircle2, AlertCircle, ChevronRight, Play, Download } from 'lucide-react';
+import { exportProductionOrdersToCsv } from '../../../../Utils/exportToCsv';
 
 interface ProductionOrder {
     id: string;
@@ -55,7 +56,17 @@ export default function Index({ orders, statuses }: Props) {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => exportProductionOrdersToCsv(orders.data)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-colors shadow-sm"
+                            title="Exportar ordens de produção em formato CSV (Excel)"
+                        >
+                            <Download className="w-3.5 h-3.5 text-indigo-400" />
+                            Exportar Planilha (CSV)
+                        </button>
+
                         <select
                             value={selectedStatus}
                             onChange={(e) => handleFilter(e.target.value)}

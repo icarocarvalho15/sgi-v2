@@ -11,8 +11,10 @@ import {
     AlertTriangle,
     CheckCircle2,
     Building2,
-    DollarSign
+    DollarSign,
+    Download
 } from 'lucide-react';
+import { exportInventoryBalancesToCsv } from '../../../../Utils/exportToCsv';
 
 interface Warehouse {
     id: string;
@@ -116,8 +118,17 @@ export default function BalancesIndex({ balances, warehouses, categories, filter
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => exportInventoryBalancesToCsv(balances.data)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors shadow-sm"
+                            title="Exportar saldos de estoque em formato CSV compatível com Excel"
+                        >
+                            <Download className="w-3.5 h-3.5 text-indigo-400" />
+                            Exportar Planilha (CSV)
+                        </button>
                         <Link
-                            href="/inventory/kardex"
+                            href="/finance?tab=kardex"
                             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition-colors shadow-sm"
                         >
                             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />

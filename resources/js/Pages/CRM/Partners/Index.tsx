@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, router } from '@inertiajs/react';
 import AppLayout from '../../../Layouts/AppLayout';
-import { UserPlus, Search, Building2, User, Phone, Mail, MapPin } from 'lucide-react';
+import { UserPlus, Search, Building2, User, Phone, Mail, MapPin, Download } from 'lucide-react';
+import { exportPartnersToCsv } from '../../../Utils/exportToCsv';
 
 interface Address {
     id: string;
@@ -75,13 +76,25 @@ export default function Index({ partners, filters }: Props) {
                         </select>
                     </div>
 
-                    <Link
-                        href="/crm/partners/create"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-medium transition-all shadow-md shadow-indigo-600/20"
-                    >
-                        <UserPlus className="w-4 h-4" />
-                        Novo Parceiro
-                    </Link>
+                    <div className="flex items-center gap-2.5">
+                        <button
+                            type="button"
+                            onClick={() => exportPartnersToCsv(partners.data)}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-colors shadow-sm"
+                            title="Exportar clientes e fornecedores em formato CSV (Excel)"
+                        >
+                            <Download className="w-3.5 h-3.5 text-indigo-400" />
+                            Exportar Planilha (CSV)
+                        </button>
+
+                        <Link
+                            href="/crm/partners/create"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-medium transition-all shadow-md shadow-indigo-600/20"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                            Novo Parceiro
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Partners List Table */}

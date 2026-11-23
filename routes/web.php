@@ -21,9 +21,15 @@ Route::middleware('guest')->group(function () {
 
 Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
 
-// Rota raiz: redireciona para login se deslogado, ou CRM se autenticado
+// Rota raiz: redireciona para login se deslogado, ou Dashboard se autenticado
 Route::get('/', function () {
-    return auth()->check() ? redirect('/crm/partners') : redirect()->route('login');
+    if (! auth()->check()) {
+        return redirect()->route('login');
+    }
+    if (auth()->user()->isSuperAdmin() && ! \App\Modules\CentralAdmin\Services\ImpersonationService::isImpersonating()) {
+        return redirect()->route('admin.tenants.index');
+    }
+    return redirect()->route('tenant.dashboard');
 });
 
 // Painel do Landlord SaaS (Gestão Global de Tenants, Planos, Assinaturas e Auditoria)
@@ -53,6 +59,13 @@ Route::middleware(['web', EnsureSuperAdmin::class])->prefix('admin')->name('admi
 
 // Rotas do Tenant (Isolamento RLS Multi-Tenant Automático e Controle RBAC por Perfil)
 Route::middleware([SetTenantContext::class])->group(function () {
+    // Painel Operacional & Executivo (Dashboard)
+    Route::get('dashboard', [\App\Modules\CoreAdmin\Controllers\DashboardController::class, 'index'])->name('tenant.dashboard');
+
+    // Módulo Financeiro & Controladoria Unificado com Abas (Títulos, Fluxo & DRE e Kardex)
+    Route::middleware('tenant.role:admin,finance,reports,kardex')->group(function () {
+        Route::get('finance', [\App\Modules\Finance\Controllers\FinancialHubController::class, 'index'])->name('tenant.finance.index');
+    });
     // Módulo CRM: Clientes e Fornecedores (Admin, Comercial/Vendas e Financeiro)
     Route::middleware('tenant.role:admin,sales,finance,crm')->group(function () {
         Route::resource('crm/partners', PartnerController::class)->names('crm.partners');

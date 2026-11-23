@@ -12,8 +12,10 @@ import {
     Clock, 
     Building2, 
     X,
-    Wallet
+    Wallet,
+    Download
 } from 'lucide-react';
+import { exportFinancialEntriesToCsv } from '../../../../Utils/exportToCsv';
 
 interface Partner {
     id: string;
@@ -160,8 +162,17 @@ export default function EntriesIndex({ entries, bankAccounts, filters, metrics }
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => exportFinancialEntriesToCsv(entries.data)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition-colors shadow-sm"
+                            title="Exportar títulos em formato compatível com Excel e Google Sheets"
+                        >
+                            <Download className="w-4 h-4 text-emerald-400" />
+                            Exportar Planilha (CSV)
+                        </button>
                         <Link
-                            href="/finance/reports"
+                            href="/finance?tab=reports"
                             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700 transition-colors shadow-sm"
                         >
                             <Wallet className="w-4 h-4 text-indigo-400" />
